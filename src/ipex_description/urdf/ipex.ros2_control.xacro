@@ -9,10 +9,6 @@
       <!--
         IPEX hardware configuration.
 
-        drivetrain_transport:
-          legacy_microros = temporary /cmd_vel bridge
-          serial          = future direct USB serial transport
-
         Wheel dimensions are in meters.
       -->
       <param name="drivetrain_transport">serial</param>
@@ -20,7 +16,7 @@
       <param name="wheel_radius">0.10</param>
       <param name="wheel_separation">0.582</param>
 
-      <!-- Used when drivetrain_transport = serial -->
+      <!-- Drivetrain USB serial connection -->
       <param name="drivetrain_serial_device">/dev/serial/by-id/usb-Teensyduino_USB_Serial_20406990-if00</param>
       <param name="drivetrain_serial_baud">115200</param>
     </hardware>

@@ -2,7 +2,6 @@
 
 #include <string>
 
-#include "ipex_hardware/legacy_microros_transport.hpp"
 #include "ipex_hardware/serial_transport.hpp"
 #include "pluginlib/class_list_macros.hpp"
 
@@ -25,9 +24,6 @@ hardware_interface::CallbackReturn IpexSystem::on_init(
 
   try
   {
-    drivetrain_transport_type_ =
-      hardware_params.at("drivetrain_transport");
-
     wheel_radius_ =
       std::stod(hardware_params.at("wheel_radius"));
 
@@ -83,11 +79,6 @@ hardware_interface::CallbackReturn IpexSystem::on_init(
 
   RCLCPP_INFO(
     get_logger(),
-    "Drivetrain transport: %s",
-    drivetrain_transport_type_.c_str());
-
-  RCLCPP_INFO(
-    get_logger(),
     "Wheel radius: %.3f m | Wheel separation: %.3f m",
     wheel_radius_,
     wheel_separation_);
@@ -122,48 +113,17 @@ hardware_interface::CallbackReturn IpexSystem::on_configure(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  // V0 TEMPORARY TRANSPORT
-  //
-  // ros2_control produces wheel velocity commands.
-  // LegacyMicroRosTransport converts those commands back into /cmd_vel
-  // for the existing drivetrain Teensy firmware.
-  //
-  // This transport will later be replaced by direct USB serial.
-  if (drivetrain_transport_type_ == "legacy_microros")
-  {
-    drivetrain_transport_ =
-      std::make_unique<LegacyMicroRosTransport>(
-        get_node(),
-        wheel_radius_,
-        wheel_separation_);
-
-    RCLCPP_INFO(
-      get_logger(),
-      "Using legacy micro-ROS drivetrain transport.");
-  }
-  else if (drivetrain_transport_type_ == "serial")
-  {
-    drivetrain_transport_ =
-      std::make_unique<SerialTransport>(
-        get_node(),
-        drivetrain_serial_device_,
-        drivetrain_serial_baud_);
-
-    RCLCPP_INFO(
-      get_logger(),
-      "Using direct serial drivetrain transport: %s at %d baud.",
-      drivetrain_serial_device_.c_str(),
+  drivetrain_transport_ =
+    std::make_unique<SerialTransport>(
+      get_node(),
+      drivetrain_serial_device_,
       drivetrain_serial_baud_);
-  }
-  else
-  {
-    RCLCPP_ERROR(
-      get_logger(),
-      "Unsupported drivetrain transport: %s",
-      drivetrain_transport_type_.c_str());
 
-    return hardware_interface::CallbackReturn::ERROR;
-  }
+  RCLCPP_INFO(
+    get_logger(),
+    "Using direct serial drivetrain transport: %s at %d baud.",
+    drivetrain_serial_device_.c_str(),
+    drivetrain_serial_baud_);
 
   RCLCPP_INFO(
     get_logger(),
@@ -321,11 +281,8 @@ hardware_interface::return_type IpexSystem::write(
   //        ↓
   // DrivetrainTransport
   //
-  // For V0:
-  // LegacyMicroRosTransport publishes /cmd_vel.
-  //
-  // Later:
-  // SerialTransport sends commands directly over USB serial.
+  // Wheel velocity commands are sent directly to the drivetrain
+  // Teensy over USB serial through SerialTransport.
   //
 
 

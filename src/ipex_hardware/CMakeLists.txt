@@ -6,12 +6,10 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
-find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 add_library(ipex_system SHARED
   src/ipex_system.cpp
-  src/legacy_microros_transport.cpp
   src/serial_transport.cpp
 )
 
@@ -25,7 +23,6 @@ ament_target_dependencies(ipex_system
   pluginlib
   rclcpp
   rclcpp_lifecycle
-  geometry_msgs
   std_msgs
 )
 
@@ -53,7 +50,6 @@ ament_export_dependencies(
   pluginlib
   rclcpp
   rclcpp_lifecycle
-  geometry_msgs
   std_msgs
 )
 

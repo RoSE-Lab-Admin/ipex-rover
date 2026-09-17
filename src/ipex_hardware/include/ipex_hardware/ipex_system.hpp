@@ -40,8 +40,6 @@ public:
 private:
   std::unique_ptr<DrivetrainTransport> drivetrain_transport_;
 
-  std::string drivetrain_transport_type_;
-
   double wheel_radius_ = 0.0;
   double wheel_separation_ = 0.0;
 
