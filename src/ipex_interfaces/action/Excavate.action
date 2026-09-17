@@ -1,0 +1,9 @@
+float64 target_mass
+float64 arm_angle
+---
+bool success
+float64 excavated_mass
+string message
+---
+float64 excavated_mass
+float64 mass_remaining

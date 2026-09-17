@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+
+<library path="ipex_system">
+
+  <class
+    name="ipex_hardware/IpexSystem"
+    type="ipex_hardware::IpexSystem"
+    base_class_type="hardware_interface::SystemInterface">
+
+    <description>
+      ros2_control hardware interface for the IPEX rover.
+    </description>
+
+  </class>
+
+</library>

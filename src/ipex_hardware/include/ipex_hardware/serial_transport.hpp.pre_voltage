@@ -1,0 +1,35 @@
+#ifndef IPEX_HARDWARE__SERIAL_TRANSPORT_HPP_
+#define IPEX_HARDWARE__SERIAL_TRANSPORT_HPP_
+
+#include <string>
+
+#include "ipex_hardware/drivetrain_transport.hpp"
+
+namespace ipex_hardware
+{
+
+class SerialTransport : public DrivetrainTransport
+{
+public:
+  SerialTransport(
+    const std::string & device,
+    int baud_rate);
+
+  ~SerialTransport() override;
+
+  bool write(
+    double left_wheel_rad_s,
+    double right_wheel_rad_s) override;
+
+private:
+  bool open_port();
+  void close_port();
+
+  std::string device_;
+  int baud_rate_;
+  int fd_ = -1;
+};
+
+}  // namespace ipex_hardware
+
+#endif

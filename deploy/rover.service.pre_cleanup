@@ -1,0 +1,14 @@
+[Unit]
+Description=Rover Micro-ROS and Foxglove Service
+After=network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ipex-rp5
+ExecStart=/home/ipex-rp5/start_rover.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

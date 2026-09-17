@@ -1,0 +1,55 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    shoulder_controller:
+      type: position_controllers/JointGroupPositionController
+
+    drum_controller:
+      type: velocity_controllers/JointGroupVelocityController
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+shoulder_controller:
+  ros__parameters:
+    joints:
+      - front_shoulder_rev
+      - back_shoulder_rev
+
+
+drum_controller:
+  ros__parameters:
+    joints:
+      - front_left_drum_rev
+      - front_right_drum_rev
+      - back_left_drum_rev
+      - back_right_drum_rev
+
+diff_drive_controller:
+  ros__parameters:
+    left_wheel_names:
+      - front_left_wheel_rev
+      - back_left_wheel_rev
+
+    right_wheel_names:
+      - front_right_wheel_rev
+      - back_right_wheel_rev
+
+    wheel_separation: 0.582
+
+    # TEMPORARY MOCK VALUE.
+    # Replace with actual measured/CAD wheel radius before real hardware.
+    wheel_radius: 0.10
+
+    open_loop: true
+    position_feedback: false
+
+    odom_frame_id: odom
+    base_frame_id: base_link
+
+    enable_odom_tf: true
+    cmd_vel_timeout: 0.5

@@ -1,0 +1,10 @@
+float64 deposit_mass
+float64 arm_angle
+---
+bool success
+float64 deposited_mass
+string message
+---
+float64 current_mass
+float64 deposited_mass
+float64 mass_remaining

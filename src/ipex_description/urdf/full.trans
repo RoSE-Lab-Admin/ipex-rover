@@ -1,0 +1,114 @@
+<?xml version="1.0" ?>
+<robot name="full" xmlns:xacro="http://www.ros.org/wiki/xacro" >
+
+<transmission name="front_shoulder_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="front_shoulder_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="front_shoulder_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="front_left_drum_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="front_left_drum_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="front_left_drum_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="front_right_drum_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="front_right_drum_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="front_right_drum_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="front_left_wheel_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="front_left_wheel_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="front_left_wheel_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="back_left_wheel_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="back_left_wheel_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="back_left_wheel_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="front_right_wheel_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="front_right_wheel_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="front_right_wheel_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="back_right_wheel_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="back_right_wheel_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="back_right_wheel_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="back_shoulder_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="back_shoulder_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="back_shoulder_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="back_left_drum_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="back_left_drum_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="back_left_drum_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="back_right_drum_rev_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="back_right_drum_rev">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="back_right_drum_rev_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+</robot>

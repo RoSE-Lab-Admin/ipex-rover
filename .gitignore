@@ -1,0 +1,18 @@
+# colcon generated output
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# ROS runtime
+.ros/
+
+# Editor / OS junk
+.vscode/
+.idea/
+*~
+.DS_Store

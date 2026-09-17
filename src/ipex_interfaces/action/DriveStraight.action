@@ -1,0 +1,9 @@
+float64 distance
+float64 speed
+---
+bool success
+float64 final_distance
+string message
+---
+float64 distance_traveled
+float64 distance_remaining

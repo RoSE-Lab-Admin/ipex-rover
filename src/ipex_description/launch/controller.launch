@@ -1,0 +1,9 @@
+<launch>
+
+<rosparam file="$(find ipex_description)/launch/controller.yaml" command="load"/>
+<node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" ns="full" args="front_shoulder_rev_position_controller front_left_drum_rev_position_controller front_right_drum_rev_position_controller front_left_wheel_rev_position_controller back_left_wheel_rev_position_controller front_right_wheel_rev_position_controller back_right_wheel_rev_position_controller back_shoulder_rev_position_controller back_left_drum_rev_position_controller back_right_drum_rev_position_controller joint_state_controller "/>
+<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="false" output="screen">
+  <remap from="/joint_states" to="/full/joint_states"/>
+</node>
+
+</launch>

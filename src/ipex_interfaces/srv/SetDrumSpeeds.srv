@@ -1,0 +1,5 @@
+float64 front_rad_s
+float64 rear_rad_s
+---
+bool success
+string message
