@@ -76,10 +76,19 @@ def generate_launch_description():
         respawn_delay=5.0,
     )
 
+    # Avionics and battery MCP9808 temperature sensors.
+    temperature_node = Node(
+        package='ipex_sensors',
+        executable='temperature_node',
+        name='temperature_node',
+        output='screen',
+    )
+
     return LaunchDescription([
         control,
         foxglove,
         cmd_vel_bridge,
         controller,
+        temperature_node,
         joy,
     ])
