@@ -5,6 +5,7 @@
 # D-pad left/right : drum speed -/+ drum_speed_step (all drums, continuous)
 # LB / LT          : rear arm up / down by arm_step_deg
 # RB / RT          : front arm up / down by arm_step_deg
+# A                : HOME (CAL) all connected arms -- arms MOVE to limit switch
 # B                : ALL STOP (/ipex/all_stop -> STOP to every Teensy; drive + drums zero)
 #
 # Units here: arms in degrees, drums in firmware steps/s. controller.py
@@ -20,6 +21,7 @@ controller:
     dpad_y_axis: 7          # +1 = up,   -1 = down
 
     # Buttons
+    home_button: 0          # A
     all_stop_button: 1      # B
     left_bumper_button: 4
     right_bumper_button: 5

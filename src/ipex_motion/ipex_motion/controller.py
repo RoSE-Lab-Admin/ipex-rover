@@ -23,6 +23,7 @@ DEFAULT_PARAMS = {
     'right_trigger_axis': 5,
     'dpad_x_axis': 6,
     'dpad_y_axis': 7,
+    'home_button': 0,
     'all_stop_button': 1,
     'left_bumper_button': 4,
     'right_bumper_button': 5,
@@ -82,6 +83,9 @@ class Controller(Node):
         # ALL STOP -> every Teensy (drivetrain + arms) receives STOP.
         self.all_stop_pub = self.create_publisher(Empty, '/ipex/all_stop', 10)
 
+        # HOME -> every connected arm Teensy receives CAL (arms MOVE).
+        self.home_pub = self.create_publisher(Empty, '/ipex/home_arms', 10)
+
         # Arm homed status from IpexArmSystem (latched).
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(
@@ -123,6 +127,7 @@ class Controller(Node):
 
         # Previous input states for rising-edge detection.
         self.prev = {
+            'a': False,
             'b': False,
             'lb': False, 'rb': False, 'lt': False, 'rt': False,
             'dpad_up': False, 'dpad_down': False,
@@ -188,6 +193,11 @@ class Controller(Node):
         if self.rising('b', self.button(msg, self.p['all_stop_button'])):
             self.all_stop()
             return
+
+        # A: home (calibrate) all connected arms.
+        if self.rising('a', self.button(msg, self.p['home_button'])):
+            self.home_pub.publish(Empty())
+            self.get_logger().warn('HOME: calibrating arms (arms will move).')
 
         self.handle_speed_bounds(msg)
         self.handle_drums(msg)
@@ -304,8 +314,7 @@ class Controller(Node):
 
         if not self.homed[arm]:
             self.get_logger().warn(
-                f'{label} arm not homed; ignoring command. Home with: '
-                f'ros2 topic pub --once /ipex/home_arms std_msgs/msg/Empty {{}}')
+                f'{label} arm not homed; ignoring command. Press A to home.')
             return None
 
         if target is None:
