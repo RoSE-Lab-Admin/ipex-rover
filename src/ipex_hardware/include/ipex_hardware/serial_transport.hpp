@@ -26,6 +26,8 @@ public:
     double left_wheel_rad_s,
     double right_wheel_rad_s) override;
 
+  bool stop() override;
+
 private:
   bool open_port();
   void close_port();

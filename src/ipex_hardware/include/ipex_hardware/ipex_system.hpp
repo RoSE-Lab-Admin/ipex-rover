@@ -1,6 +1,7 @@
 #ifndef IPEX_HARDWARE__IPEX_SYSTEM_HPP_
 #define IPEX_HARDWARE__IPEX_SYSTEM_HPP_
 
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -8,6 +9,7 @@
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/state.hpp"
+#include "std_msgs/msg/empty.hpp"
 
 #include "ipex_hardware/drivetrain_transport.hpp"
 
@@ -45,6 +47,10 @@ private:
 
   std::string drivetrain_serial_device_;
   int drivetrain_serial_baud_ = 115200;
+
+  // ALL STOP: /ipex/all_stop (std_msgs/Empty) -> "STOP" to the drivetrain.
+  std::atomic<bool> stop_requested_{false};
+  rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr all_stop_sub_;
 };
 
 }  // namespace ipex_hardware

@@ -12,7 +12,10 @@ from launch.substitutions import PathJoinSubstitution
 
 def generate_launch_description():
 
-    # Existing hardware + ros2_control bringup.
+    # Hardware + ros2_control bringup.
+    # Arm args (rear_arm, front_arm, rear_arm_serial_device,
+    # front_arm_serial_device, home_arms_on_start) are declared in
+    # control.launch.py and can be passed straight to this file.
     control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -20,7 +23,7 @@ def generate_launch_description():
                 'launch',
                 'control.launch.py',
             ])
-        )
+        ),
     )
 
     # Foxglove WebSocket bridge.
@@ -45,12 +48,19 @@ def generate_launch_description():
         output='screen',
     )
 
-    # Existing KNOWN-GOOD controller.py.
-    # We are deliberately NOT replacing this with today's modified version yet.
+    # F710 hand controller: tank drive, arms, drums, speed bounds.
+    # Mapping and limits in ipex_bringup/config/teleop.yaml.
     controller = Node(
         package='ipex_motion',
         executable='controller',
         name='controller',
+        parameters=[
+            PathJoinSubstitution([
+                FindPackageShare('ipex_bringup'),
+                'config',
+                'teleop.yaml',
+            ])
+        ],
         output='screen',
     )
 

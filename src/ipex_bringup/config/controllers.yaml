@@ -5,27 +5,42 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-    shoulder_controller:
+    # One shoulder + one drum controller per arm, so each arm can be
+    # spawned independently (one Teensy per arm; front arm may be absent).
+    front_shoulder_controller:
       type: position_controllers/JointGroupPositionController
 
-    drum_controller:
+    rear_shoulder_controller:
+      type: position_controllers/JointGroupPositionController
+
+    front_drum_controller:
+      type: velocity_controllers/JointGroupVelocityController
+
+    rear_drum_controller:
       type: velocity_controllers/JointGroupVelocityController
 
     diff_drive_controller:
       type: diff_drive_controller/DiffDriveController
 
-shoulder_controller:
+front_shoulder_controller:
   ros__parameters:
     joints:
       - front_shoulder_rev
+
+rear_shoulder_controller:
+  ros__parameters:
+    joints:
       - back_shoulder_rev
 
-
-drum_controller:
+front_drum_controller:
   ros__parameters:
     joints:
       - front_left_drum_rev
       - front_right_drum_rev
+
+rear_drum_controller:
+  ros__parameters:
+    joints:
       - back_left_drum_rev
       - back_right_drum_rev
 

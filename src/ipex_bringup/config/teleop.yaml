@@ -1,0 +1,48 @@
+# Logitech F710 (X mode, joy_linux) hand-controller mapping for controller.py.
+#
+# Sticks           : tank drive (left stick Y = left side, right stick Y = right side)
+# D-pad up/down    : max side speed +/- speed_step
+# D-pad left/right : drum speed -/+ drum_speed_step (all drums, continuous)
+# LB / LT          : rear arm up / down by arm_step_deg
+# RB / RT          : front arm up / down by arm_step_deg
+# B                : ALL STOP (/ipex/all_stop -> STOP to every Teensy; drive + drums zero)
+#
+# Units here: arms in degrees, drums in firmware steps/s. controller.py
+# converts to SI (rad, rad/s) for ros2_control.
+controller:
+  ros__parameters:
+    # Axes
+    left_y_axis: 1
+    right_y_axis: 4
+    left_trigger_axis: 2
+    right_trigger_axis: 5
+    dpad_x_axis: 6          # +1 = left, -1 = right
+    dpad_y_axis: 7          # +1 = up,   -1 = down
+
+    # Buttons
+    all_stop_button: 1      # B
+    left_bumper_button: 4
+    right_bumper_button: 5
+
+    # Trigger counts as pressed below this value (released = +1, full = -1).
+    trigger_pressed_threshold: 0.0
+
+    # Drive
+    min_side_speed: 0.10    # m/s
+    max_side_speed: 0.90    # m/s
+    speed_step: 0.10        # m/s
+    wheel_separation: 0.582 # m, must match diff_drive_controller
+
+    # Drums (steps/s, firmware max 3200)
+    drum_speed_step: 500.0
+    drum_speed_limit: 3000.0
+    drum_steps_per_rev: 400.0  # Matches MOTOR_STEPS_PER_REV in firmware/arm/arm.ino
+    front_drum_direction: 1.0
+    rear_drum_direction: 1.0
+
+    # Arms (deg). Must match firmware ARM_MIN_DEG / ARM_MAX_DEG in firmware/arm/arm.ino.
+    arm_step_deg: 5.0
+    front_arm_min_deg: -40.0
+    front_arm_max_deg: 45.0
+    rear_arm_min_deg: -40.0
+    rear_arm_max_deg: 45.0

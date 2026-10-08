@@ -8,7 +8,18 @@
     base_class_type="hardware_interface::SystemInterface">
 
     <description>
-      ros2_control hardware interface for the IPEX rover.
+      ros2_control hardware interface for the IPEX rover drivetrain Teensy.
+    </description>
+
+  </class>
+
+  <class
+    name="ipex_hardware/IpexArmSystem"
+    type="ipex_hardware::IpexArmSystem"
+    base_class_type="hardware_interface::SystemInterface">
+
+    <description>
+      ros2_control hardware interface for one IPEX arm Teensy (shoulder + drums).
     </description>
 
   </class>

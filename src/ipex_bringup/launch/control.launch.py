@@ -1,5 +1,12 @@
 from launch import LaunchDescription
-from launch.substitutions import Command, PathJoinSubstitution, FindExecutable
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import (
+    Command,
+    FindExecutable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
@@ -24,6 +31,11 @@ def generate_launch_description():
                 FindExecutable(name="xacro"),
                 " ",
                 xacro_file,
+                " rear_arm:=", LaunchConfiguration("rear_arm"),
+                " front_arm:=", LaunchConfiguration("front_arm"),
+                " rear_arm_serial_device:=", LaunchConfiguration("rear_arm_serial_device"),
+                " front_arm_serial_device:=", LaunchConfiguration("front_arm_serial_device"),
+                " home_arms_on_start:=", LaunchConfiguration("home_arms_on_start"),
             ]),
             value_type=str,
         )
@@ -54,26 +66,33 @@ def generate_launch_description():
         output="screen",
     )
 
-    shoulder_controller_spawner = Node(
+    # Rear arm controllers: only when rear_arm:=true.
+    rear_arm_spawner = Node(
         package="controller_manager",
         executable="spawner",
         arguments=[
-            "shoulder_controller",
+            "rear_shoulder_controller",
+            "rear_drum_controller",
             "--controller-manager",
             "/controller_manager",
         ],
         output="screen",
+        condition=IfCondition(LaunchConfiguration("rear_arm")),
     )
 
-    drum_controller_spawner = Node(
+    # Front arm controllers: only when front_arm:=true
+    # (front arm Teensy not yet installed).
+    front_arm_spawner = Node(
         package="controller_manager",
         executable="spawner",
         arguments=[
-            "drum_controller",
+            "front_shoulder_controller",
+            "front_drum_controller",
             "--controller-manager",
             "/controller_manager",
         ],
         output="screen",
+        condition=IfCondition(LaunchConfiguration("front_arm")),
     )
 
     diff_drive_controller_spawner = Node(
@@ -87,11 +106,39 @@ def generate_launch_description():
         output="screen",
     )
 
-    return LaunchDescription([
+    args = [
+        DeclareLaunchArgument(
+            "rear_arm",
+            default_value="true",
+            description="Enable rear arm hardware + controllers.",
+        ),
+        DeclareLaunchArgument(
+            "front_arm",
+            default_value="false",
+            description="Enable front arm hardware + controllers.",
+        ),
+        DeclareLaunchArgument(
+            "rear_arm_serial_device",
+            default_value="/dev/serial/by-id/REAR_ARM_TEENSY_ID_NOT_SET",
+            description="Rear arm Teensy serial device (ls /dev/serial/by-id/).",
+        ),
+        DeclareLaunchArgument(
+            "front_arm_serial_device",
+            default_value="/dev/serial/by-id/FRONT_ARM_TEENSY_ID_NOT_SET",
+            description="Front arm Teensy serial device (ls /dev/serial/by-id/).",
+        ),
+        DeclareLaunchArgument(
+            "home_arms_on_start",
+            default_value="false",
+            description="Home arms automatically on startup (arms will MOVE).",
+        ),
+    ]
+
+    return LaunchDescription(args + [
         robot_state_publisher,
         controller_manager,
         joint_state_broadcaster_spawner,
-        shoulder_controller_spawner,
-        drum_controller_spawner,
+        rear_arm_spawner,
+        front_arm_spawner,
         diff_drive_controller_spawner,
     ])

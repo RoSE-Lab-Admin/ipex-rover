@@ -119,6 +119,10 @@ hardware_interface::CallbackReturn IpexSystem::on_configure(
       drivetrain_serial_device_,
       drivetrain_serial_baud_);
 
+  all_stop_sub_ = get_node()->create_subscription<std_msgs::msg::Empty>(
+    "/ipex/all_stop", 10,
+    [this](const std_msgs::msg::Empty &) {stop_requested_ = true;});
+
   RCLCPP_INFO(
     get_logger(),
     "Using direct serial drivetrain transport: %s at %d baud.",
@@ -160,61 +164,15 @@ hardware_interface::return_type IpexSystem::read(
   const rclcpp::Duration & period)
 {
   //
-  // V0 MOCK STATE BEHAVIOR
+  // V0 MOCK STATE BEHAVIOR (drivetrain only)
   //
-  // Physical sensor feedback is not implemented yet.
+  // Shoulders and drums are owned by IpexArmSystem (one per arm Teensy).
   //
   // Future versions will:
   //   - read drivetrain feedback
-  //   - read shoulder encoder state
-  //   - read drum state
   //   - read voltage/current telemetry
   //   - update ros2_control state interfaces
   //
-
-
-  // --------------------------------------------------
-  // SHOULDERS
-  // --------------------------------------------------
-  //
-  // TEMPORARY:
-  // Pretend commanded position is measured position.
-  //
-  // Remove this when real shoulder feedback is available.
-
-  set_state(
-    "front_shoulder_rev/position",
-    get_command("front_shoulder_rev/position"));
-
-  set_state(
-    "back_shoulder_rev/position",
-    get_command("back_shoulder_rev/position"));
-
-
-  // --------------------------------------------------
-  // DRUMS
-  // --------------------------------------------------
-  //
-  // TEMPORARY:
-  // Pretend commanded velocity is measured velocity.
-  //
-  // Remove this when real drum feedback is available.
-
-  set_state(
-    "front_left_drum_rev/velocity",
-    get_command("front_left_drum_rev/velocity"));
-
-  set_state(
-    "front_right_drum_rev/velocity",
-    get_command("front_right_drum_rev/velocity"));
-
-  set_state(
-    "back_left_drum_rev/velocity",
-    get_command("back_left_drum_rev/velocity"));
-
-  set_state(
-    "back_right_drum_rev/velocity",
-    get_command("back_right_drum_rev/velocity"));
 
 
   // --------------------------------------------------
@@ -324,6 +282,26 @@ hardware_interface::return_type IpexSystem::write(
   }
 
 
+  // ALL STOP: send STOP instead of a DRIVE command this cycle.
+  if (stop_requested_.exchange(false))
+  {
+    if (!drivetrain_transport_->stop())
+    {
+      RCLCPP_ERROR(
+        get_logger(),
+        "Failed to send drivetrain STOP.");
+
+      return hardware_interface::return_type::ERROR;
+    }
+
+    RCLCPP_WARN(
+      get_logger(),
+      "ALL STOP: drivetrain STOP sent.");
+
+    return hardware_interface::return_type::OK;
+  }
+
+
   if (!drivetrain_transport_->write(
       left_velocity,
       right_velocity))
@@ -335,12 +313,6 @@ hardware_interface::return_type IpexSystem::write(
     return hardware_interface::return_type::ERROR;
   }
 
-
-  // Shoulder and drum physical writes are intentionally
-  // not implemented in V0.
-  //
-  // Their ros2_control interfaces exist so the software
-  // architecture is ready when the hardware is finalized.
 
 
   return hardware_interface::return_type::OK;

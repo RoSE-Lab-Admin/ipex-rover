@@ -11,6 +11,8 @@ find_package(std_msgs REQUIRED)
 add_library(ipex_system SHARED
   src/ipex_system.cpp
   src/serial_transport.cpp
+  src/serial_port.cpp
+  src/ipex_arm_system.cpp
 )
 
 target_include_directories(ipex_system PUBLIC

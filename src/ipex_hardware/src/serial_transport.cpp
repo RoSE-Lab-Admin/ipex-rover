@@ -344,4 +344,21 @@ bool SerialTransport::write(
   return bytes_written == length;
 }
 
+
+bool SerialTransport::stop()
+{
+  if (fd_ < 0)
+  {
+    return false;
+  }
+
+  const char stop_command[] = "STOP\n";
+  const ssize_t bytes_written =
+    ::write(fd_, stop_command, sizeof(stop_command) - 1);
+
+  read_available();
+
+  return bytes_written == static_cast<ssize_t>(sizeof(stop_command) - 1);
+}
+
 }  // namespace ipex_hardware

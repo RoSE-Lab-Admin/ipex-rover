@@ -12,6 +12,9 @@ public:
   virtual bool write(
     double left_wheel_rad_s,
     double right_wheel_rad_s) = 0;
+
+  // Immediately stop all drive motors.
+  virtual bool stop() = 0;
 };
 
 }  // namespace ipex_hardware

@@ -1,0 +1,265 @@
+#include <Encoder.h>
+#include <AccelStepper.h>
+
+#define LED_PIN 13
+
+// --- ARM MOTOR & SENSOR PINS ---
+const int MOTOR_ENC_STEP = 8;   // Encoder Motor PUL+
+const int MOTOR_ENC_DIR  = 9;   // Encoder Motor DIR+
+const int MOTOR_BRK_STEP = 2;   // Brake Motor PUL+
+const int MOTOR_BRK_DIR  = 3;   // Brake Motor DIR+
+
+const int ENCODER_A      = 6;   
+const int ENCODER_B      = 7;   
+const int LIMIT_SW_PIN   = 10;  
+const int BRAKE_RELAY    = 23;  // Transistor Base for 24V Brake Relay
+
+// --- DRUM / ACTUATOR PINS (NEMA 17 on TB6600) ---
+#define N17_STEP  24  // PUL+
+#define N17_DIR   25  // DIR+
+#define N17_EN    26  // EN+
+
+// --- HARDWARE & GEARING CONSTANTS ---
+const float GEAR_RATIO          = 100.0;  
+const float MOTOR_STEPS_PER_REV = 400.0;  
+const float ENCODER_MOTOR_CPR   = 4000.0; 
+
+const float STEPS_PER_ARM_DEG   = (MOTOR_STEPS_PER_REV * GEAR_RATIO) / 360.0;   
+const float ENCODER_CPR_ARM_DEG = (ENCODER_MOTOR_CPR * GEAR_RATIO) / 360.0; 
+const float MAX_CUT_DEPTH_MM    = 50.0;   
+
+// --- OBJECTS & GLOBAL STATES ---
+Encoder myEncoder(ENCODER_A, ENCODER_B);
+AccelStepper drum1(AccelStepper::DRIVER, N17_STEP, N17_DIR);
+
+bool isHomed = false;
+bool isDrumMoving = false;
+
+// --- BRAKE CONTROL FUNCTIONS ---
+void releaseBrake() {
+  digitalWrite(BRAKE_RELAY, HIGH); // Transistor ON -> IN1 Grounded -> Releases 24V Brake
+  delay(200); 
+}
+
+void engageBrake() {
+  digitalWrite(BRAKE_RELAY, LOW);  // Transistor OFF -> Spring-locks Brake
+  delay(200);                      
+}
+
+// --- CALCULATION HELPERS ---
+float getPhysicalArmDegrees() {
+  long rawCounts = myEncoder.read();
+  return rawCounts / ENCODER_CPR_ARM_DEG;
+}
+
+float calculateCutDepth(float armDegrees) {
+  if (armDegrees > 0.0) return 0.0; 
+  float normalizedDownward = abs(armDegrees) / 90.0; 
+  return normalizedDownward * MAX_CUT_DEPTH_MM;
+}
+
+void displayStatus() {
+  float currentArmDeg = getPhysicalArmDegrees();
+  float currentDepth = calculateCutDepth(currentArmDeg);
+  
+  Serial.print("Current Arm Angle: ");
+  Serial.print(currentArmDeg, 1);
+  Serial.print(" deg | Cut Depth: ");
+  Serial.print(currentDepth, 2);
+  Serial.println(" mm\n");
+}
+
+// --- ARM MOVEMENT FUNCTIONS ---
+void homeSystem() {
+  Serial.println("\n[Homing Sequence Initiated]");
+  Serial.println("Releasing brake and homing motors to limit switch...");
+  
+  releaseBrake();
+  
+  // Set opposing directions for initial sweep (Encoder Motor CW / Brake Motor CCW)
+  digitalWrite(MOTOR_ENC_DIR, HIGH); 
+  digitalWrite(MOTOR_BRK_DIR, LOW);  
+
+  while (digitalRead(LIMIT_SW_PIN) == HIGH) {
+    digitalWrite(MOTOR_ENC_STEP, HIGH);
+    digitalWrite(MOTOR_BRK_STEP, HIGH);
+    delayMicroseconds(800); 
+    digitalWrite(MOTOR_ENC_STEP, LOW);
+    digitalWrite(MOTOR_BRK_STEP, LOW);
+    delayMicroseconds(800);
+
+    // Keep drum motor moving if active during homing
+    if (isDrumMoving) drum1.run();
+  }
+  
+  // Back off limit switch in opposite directions
+  digitalWrite(MOTOR_ENC_DIR, LOW);
+  digitalWrite(MOTOR_BRK_DIR, HIGH);
+  for (int i = 0; i < 200; i++) {
+    digitalWrite(MOTOR_ENC_STEP, HIGH);
+    digitalWrite(MOTOR_BRK_STEP, HIGH);
+    delayMicroseconds(800);
+    digitalWrite(MOTOR_ENC_STEP, LOW);
+    digitalWrite(MOTOR_BRK_STEP, LOW);
+    delayMicroseconds(800);
+
+    if (isDrumMoving) drum1.run();
+  }
+  
+  long armHomeCounts = 90.0 * ENCODER_CPR_ARM_DEG;
+  myEncoder.write(armHomeCounts); 
+  isHomed = true;
+  
+  engageBrake();
+  
+  Serial.println("\n>>> Limit switch hit! Calibration complete. <<<");
+  Serial.println("Brake ENGAGED. System locked at +90.0 deg.\n");
+}
+
+void moveToPhysicalAngle(float targetArmDeg) {
+  if (!isHomed) {
+    Serial.println("[Warning] Arm is not calibrated! Type 'CAL' first.");
+    return;
+  }
+
+  if (targetArmDeg > 90.0) targetArmDeg = 90.0;
+  if (targetArmDeg < -90.0) targetArmDeg = -90.0;
+
+  float currentDeg = getPhysicalArmDegrees();
+  float deltaDeg = targetArmDeg - currentDeg;
+  
+  int stepsToMove = abs(deltaDeg) * STEPS_PER_ARM_DEG;
+  
+  if (stepsToMove > 0) {
+    Serial.print("Releasing brake and moving arm to ");
+    Serial.print(targetArmDeg, 1);
+    Serial.println(" deg...");
+
+    releaseBrake();
+
+    // Set inverted relative directions between the two arm motors
+    if (deltaDeg < 0) {
+      digitalWrite(MOTOR_ENC_DIR, LOW);  // Encoder Motor Downward
+      digitalWrite(MOTOR_BRK_DIR, HIGH); // Brake Motor Opposite
+    } else {
+      digitalWrite(MOTOR_ENC_DIR, HIGH); // Encoder Motor Upward
+      digitalWrite(MOTOR_BRK_DIR, LOW);  // Brake Motor Opposite
+    }
+    
+    // Execute dual step pulses while maintaining drum step generation
+    for (int i = 0; i < stepsToMove; i++) {
+      digitalWrite(MOTOR_ENC_STEP, HIGH);
+      digitalWrite(MOTOR_BRK_STEP, HIGH);
+      delayMicroseconds(800); 
+      digitalWrite(MOTOR_ENC_STEP, LOW);
+      digitalWrite(MOTOR_BRK_STEP, LOW);
+      delayMicroseconds(800);
+
+      if (isDrumMoving) drum1.run();
+    }
+    
+    engageBrake();
+    
+    Serial.println("Arm target reached! Brake RE-ENGAGED.");
+    displayStatus();
+  } else {
+    Serial.println("Arm is already at target position.");
+  }
+}
+
+// --- DRUM CONTROL FUNCTIONS ---
+void setDrumSpeed(int32_t target_speed) {
+  if (target_speed != 0) {
+    drum1.enableOutputs();
+    drum1.setMaxSpeed(abs(target_speed));
+    drum1.move((target_speed > 0) ? 2000000000 : -2000000000);
+    isDrumMoving = true;
+
+    Serial.print("Drum set to speed: ");
+    Serial.print(target_speed);
+    Serial.println(" steps/sec");
+  } else {
+    drum1.stop(); // Ramps down smoothly to 0 based on setAcceleration
+    Serial.println("Stopping drum motor...");
+  }
+}
+
+// --- SETUP & MAIN LOOP ---
+void setup() {
+  Serial.begin(115200);
+  
+  // Arm Pin Modes
+  pinMode(MOTOR_ENC_STEP, OUTPUT);
+  pinMode(MOTOR_ENC_DIR, OUTPUT);
+  pinMode(MOTOR_BRK_STEP, OUTPUT);
+  pinMode(MOTOR_BRK_DIR, OUTPUT);
+  pinMode(LIMIT_SW_PIN, INPUT_PULLUP);
+  pinMode(BRAKE_RELAY, OUTPUT);
+  
+  // Drum Pin Modes & AccelStepper Configuration
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);
+  drum1.setEnablePin(N17_EN);
+  drum1.setPinsInverted(false, false, true); // (dir, step, enable)
+  drum1.setAcceleration(1500.0); // Smooth ramp rate (lower value = gentler start)
+  drum1.disableOutputs();
+
+  engageBrake(); // Lock arm brake on boot
+
+  delay(1000);
+  Serial.println("\n==============================================");
+  Serial.println("    DUAL ARM & DRUM INTEGRATED CONTROL");
+  Serial.println("==============================================");
+  Serial.println("COMMAND SYNTAX:");
+  Serial.println("  CAL            -> Home the arm system");
+  Serial.println("  ARM <deg>      -> Set arm angle (+90.0 to -90.0)");
+  Serial.println("  DRUM <steps/s> -> Set drum speed (+3200, -3200, 0 to stop)");
+  Serial.println("==============================================\n");
+}
+
+void processSerialInput() {
+  if (Serial.available() > 0) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    
+    if (input.length() == 0) return;
+    
+    // Command Routing
+    if (input.equalsIgnoreCase("CAL") || input.equalsIgnoreCase("CALIBRATE")) {
+      homeSystem();
+    }
+    else if (input.startsWith("ARM ") || input.startsWith("arm ") || input.startsWith("A ") || input.startsWith("a ")) {
+      int spaceIdx = input.indexOf(' ');
+      float angle = input.substring(spaceIdx + 1).toFloat();
+      moveToPhysicalAngle(angle);
+    }
+    else if (input.startsWith("DRUM ") || input.startsWith("drum ") || input.startsWith("D ") || input.startsWith("d ")) {
+      int spaceIdx = input.indexOf(' ');
+      int32_t speed = input.substring(spaceIdx + 1).toInt();
+      setDrumSpeed(speed);
+    }
+    // Direct numerical input fallbacks for quick commands
+    else if (isHomed && (input.indexOf('.') != -1 || input.toFloat() != 0.0)) {
+      // If user enters a float angle like "-45.0" directly
+      moveToPhysicalAngle(input.toFloat());
+    }
+    else {
+      Serial.println("[Error] Unknown command.");
+      Serial.println("Use 'CAL', 'ARM <deg>', or 'DRUM <steps/s>'");
+    }
+  }
+}
+
+void loop() {
+  processSerialInput();
+
+  // Non-blocking step execution for drum
+  if (isDrumMoving) {
+    drum1.run();
+    if (drum1.distanceToGo() == 0) {
+      drum1.disableOutputs();
+      isDrumMoving = false;
+      Serial.println("Drum motor fully stopped & outputs disabled.");
+    }
+  }
+}
