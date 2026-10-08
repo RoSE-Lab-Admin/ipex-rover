@@ -106,25 +106,28 @@ def generate_launch_description():
         output="screen",
     )
 
+    # Defaults ARE the rover configuration: systemd autostart
+    # (scripts/start_rover.sh) launches with no arguments.
+    # Enable an arm only when its Teensy is connected.
     args = [
         DeclareLaunchArgument(
             "rear_arm",
-            default_value="true",
+            default_value="false",
             description="Enable rear arm hardware + controllers.",
         ),
         DeclareLaunchArgument(
             "front_arm",
-            default_value="false",
+            default_value="true",
             description="Enable front arm hardware + controllers.",
         ),
         DeclareLaunchArgument(
             "rear_arm_serial_device",
-            default_value="/dev/serial/by-id/REAR_ARM_TEENSY_ID_NOT_SET",
+            default_value="/dev/serial/by-id/usb-Teensyduino_USB_Serial_19972490-if00",
             description="Rear arm Teensy serial device (ls /dev/serial/by-id/).",
         ),
         DeclareLaunchArgument(
             "front_arm_serial_device",
-            default_value="/dev/serial/by-id/FRONT_ARM_TEENSY_ID_NOT_SET",
+            default_value="/dev/serial/by-id/usb-Teensyduino_USB_Serial_20404840-if00",
             description="Front arm Teensy serial device (ls /dev/serial/by-id/).",
         ),
         DeclareLaunchArgument(

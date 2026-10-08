@@ -5,7 +5,7 @@ Teensy firmware for Roxey. Each board talks to `ipex_hardware` over USB serial u
 | Folder | Board | Serial ID (`/dev/serial/by-id/...`) |
 |---|---|---|
 | `drivetrain/` | Drivetrain Teensy | `usb-Teensyduino_USB_Serial_20406990-if00` |
-| `arm/` | Front + rear arm Teensys (same firmware) | Rear: TBD, Front: TBD |
+| `arm/` | Front + rear arm Teensys (same firmware) | Rear: `usb-Teensyduino_USB_Serial_19972490-if00`, Front: `usb-Teensyduino_USB_Serial_20404840-if00` |
 
 ## Status
 

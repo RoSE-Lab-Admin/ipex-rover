@@ -4,8 +4,8 @@ One board per arm; both run `arm.ino`. Each controls its arm's shoulder (two ste
 
 | Arm | Serial ID |
 |---|---|
-| Rear | TBD |
-| Front | TBD |
+| Rear | `usb-Teensyduino_USB_Serial_19972490-if00` (legacy name: back_implement) |
+| Front | `usb-Teensyduino_USB_Serial_20404840-if00` |
 
 Libraries: `Encoder`, `AccelStepper` (both ship with Teensyduino).
 

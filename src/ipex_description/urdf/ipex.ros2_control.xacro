@@ -10,14 +10,14 @@
     Arm blocks are enabled with xacro args rear_arm / front_arm.
   -->
 
-  <xacro:arg name="rear_arm" default="true"/>
-  <xacro:arg name="front_arm" default="false"/>
+  <xacro:arg name="rear_arm" default="false"/>
+  <xacro:arg name="front_arm" default="true"/>
 
-  <!-- Rear arm Teensy serial ID: set this. Find it with: ls /dev/serial/by-id/ -->
+  <!-- Rear arm Teensy (legacy name: back_implement). Find IDs with: ls /dev/serial/by-id/ -->
   <xacro:arg name="rear_arm_serial_device"
-             default="/dev/serial/by-id/REAR_ARM_TEENSY_ID_NOT_SET"/>
+             default="/dev/serial/by-id/usb-Teensyduino_USB_Serial_19972490-if00"/>
   <xacro:arg name="front_arm_serial_device"
-             default="/dev/serial/by-id/FRONT_ARM_TEENSY_ID_NOT_SET"/>
+             default="/dev/serial/by-id/usb-Teensyduino_USB_Serial_20404840-if00"/>
 
   <!-- false: arms do NOT move on startup; home with /ipex/home_arms -->
   <xacro:arg name="home_arms_on_start" default="false"/>
