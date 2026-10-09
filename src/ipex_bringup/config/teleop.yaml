@@ -40,7 +40,7 @@ controller:
     drum_speed_limit: 3000.0
     drum_steps_per_rev: 400.0  # Matches MOTOR_STEPS_PER_REV in firmware/arm/arm.ino
     front_drum_direction: 1.0
-    rear_drum_direction: 1.0
+    rear_drum_direction: -1.0   # Rear drums spin opposite to front
 
     # Arms (deg). Must match firmware ARM_MIN_DEG / ARM_MAX_DEG in firmware/arm/arm.ino.
     arm_step_deg: 5.0

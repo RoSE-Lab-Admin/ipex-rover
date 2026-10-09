@@ -38,7 +38,7 @@ DEFAULT_PARAMS = {
     'drum_speed_limit': 3000.0,
     'drum_steps_per_rev': 400.0,
     'front_drum_direction': 1.0,
-    'rear_drum_direction': 1.0,
+    'rear_drum_direction': -1.0,
 
     'arm_step_deg': 5.0,
     'front_arm_min_deg': -40.0,
