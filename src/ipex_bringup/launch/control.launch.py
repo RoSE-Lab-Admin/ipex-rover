@@ -112,7 +112,7 @@ def generate_launch_description():
     args = [
         DeclareLaunchArgument(
             "rear_arm",
-            default_value="false",
+            default_value="true",
             description="Enable rear arm hardware + controllers.",
         ),
         DeclareLaunchArgument(

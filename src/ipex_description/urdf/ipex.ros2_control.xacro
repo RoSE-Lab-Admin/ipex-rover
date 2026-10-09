@@ -10,7 +10,7 @@
     Arm blocks are enabled with xacro args rear_arm / front_arm.
   -->
 
-  <xacro:arg name="rear_arm" default="false"/>
+  <xacro:arg name="rear_arm" default="true"/>
   <xacro:arg name="front_arm" default="true"/>
 
   <!-- Rear arm Teensy (legacy name: back_implement). Find IDs with: ls /dev/serial/by-id/ -->
