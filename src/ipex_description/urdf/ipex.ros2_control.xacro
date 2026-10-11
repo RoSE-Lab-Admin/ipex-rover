@@ -40,7 +40,7 @@
       -->
       <param name="drivetrain_transport">serial</param>
 
-      <param name="wheel_radius">0.10</param>
+      <param name="wheel_radius">0.155</param>
       <param name="wheel_separation">0.582</param>
 
       <!-- Drivetrain USB serial connection -->

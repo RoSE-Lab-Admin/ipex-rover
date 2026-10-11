@@ -34,12 +34,24 @@ RoboClaw roboclaw2(&Serial3, 10000);
 //   CAL_CURRENT OK
 // -----------------------------------------------------------------------------
 
-// TEMPORARY open-loop conversion.
-// In the legacy firmware, /cmd_vel linear.x = 0.1 produced speed = 0.1 * 63 = 6.3.
-// With the current ros2_control wheel radius of 0.10 m, 0.1 m/s corresponds to
-// 1.0 rad/s wheel speed, so 6.3 preserves the known straight-drive test behavior.
-// Replace this with calibrated/closed-loop wheel-speed control later.
-constexpr float WHEEL_RAD_S_TO_SPEED = 6.3f;
+// -----------------------------------------------------------------------------
+// CLOSED-LOOP WHEEL SPEED (RoboClaw velocity PID)
+//
+// DRIVE commands are sent as RoboClaw speed commands (SpeedAccelM1M2), which
+// use the velocity PID tuned in Motion Studio. Units are QPPS (quadrature
+// encoder counts per second).
+//
+// Motors: goBILDA 5304 Saturn, 71.2:1, 1993.6 counts per output-shaft rev
+// (quadrature). Wheels mount directly on the output shaft.
+// -----------------------------------------------------------------------------
+constexpr float COUNTS_PER_WHEEL_REV = 1993.6f;
+constexpr float WHEEL_RAD_S_TO_QPPS = COUNTS_PER_WHEEL_REV / (2.0f * PI);
+
+// Max commanded speed: 260 RPM rated no-load * 1993.6 / 60 = 8639 QPPS.
+constexpr float MAX_QPPS = 8640.0f;
+
+// Ramp rate for speed changes (QPPS per second).
+constexpr uint32_t ACCEL_QPPS_S = 4000;
 
 // Fail-safe: if valid DRIVE commands stop arriving, stop all motors.
 constexpr unsigned long COMMAND_TIMEOUT_MS = 500;
@@ -94,49 +106,35 @@ unsigned long last_telemetry_time = 0;
 // MOTOR CONTROL
 // -----------------------------------------------------------------------------
 
+// Speed 0 under velocity PID: wheels are actively held at zero speed.
 void stop_all_motors() {
-  roboclaw1.ForwardM1(RC_ADDRESS, 0);
-  roboclaw1.ForwardM2(RC_ADDRESS, 0);
-  roboclaw2.ForwardM1(RC_ADDRESS, 0);
-  roboclaw2.ForwardM2(RC_ADDRESS, 0);
+  roboclaw1.SpeedM1M2(RC_ADDRESS, 0, 0);
+  roboclaw2.SpeedM1M2(RC_ADDRESS, 0, 0);
 }
 
 
-void set_motor(RoboClaw &rc, uint8_t channel, float speed) {
-  int pwm = (int)(fabsf(speed) * 2.0f);
-  if (pwm > 127) pwm = 127;
-
-  if (channel == 1) {
-    if (speed > 0.5f) {
-      rc.ForwardM1(RC_ADDRESS, pwm);
-    } else if (speed < -0.5f) {
-      rc.BackwardM1(RC_ADDRESS, pwm);
-    } else {
-      rc.ForwardM1(RC_ADDRESS, 0);
-    }
-  } else if (channel == 2) {
-    if (speed > 0.5f) {
-      rc.ForwardM2(RC_ADDRESS, pwm);
-    } else if (speed < -0.5f) {
-      rc.BackwardM2(RC_ADDRESS, pwm);
-    } else {
-      rc.ForwardM2(RC_ADDRESS, 0);
-    }
-  }
+// Wheel rad/s -> signed QPPS for one motor, clamped to +/-MAX_QPPS.
+// The library takes uint32_t; RoboClaw interprets the bits as signed.
+uint32_t to_qpps(float wheel_rad_s, float direction) {
+  float qpps = wheel_rad_s * WHEEL_RAD_S_TO_QPPS * direction;
+  if (qpps > MAX_QPPS) qpps = MAX_QPPS;
+  if (qpps < -MAX_QPPS) qpps = -MAX_QPPS;
+  return (uint32_t)(int32_t)lroundf(qpps);
 }
 
 
 void command_drive(float left_wheel_rad_s, float right_wheel_rad_s) {
-  const float speed_left  = left_wheel_rad_s  * WHEEL_RAD_S_TO_SPEED;
-  const float speed_right = right_wheel_rad_s * WHEEL_RAD_S_TO_SPEED;
-
   // Front Axle (RoboClaw 2): M1 = Right, M2 = Left
-  set_motor(roboclaw2, 1, speed_right * DIR_FRONT_RIGHT);
-  set_motor(roboclaw2, 2, speed_left  * DIR_FRONT_LEFT);
+  roboclaw2.SpeedAccelM1M2(
+    RC_ADDRESS, ACCEL_QPPS_S,
+    to_qpps(right_wheel_rad_s, DIR_FRONT_RIGHT),
+    to_qpps(left_wheel_rad_s,  DIR_FRONT_LEFT));
 
   // Back Axle (RoboClaw 1): M1 = Left, M2 = Right
-  set_motor(roboclaw1, 1, speed_left  * DIR_BACK_LEFT);
-  set_motor(roboclaw1, 2, speed_right * DIR_BACK_RIGHT);
+  roboclaw1.SpeedAccelM1M2(
+    RC_ADDRESS, ACCEL_QPPS_S,
+    to_qpps(left_wheel_rad_s,  DIR_BACK_LEFT),
+    to_qpps(right_wheel_rad_s, DIR_BACK_RIGHT));
 }
 
 

@@ -56,9 +56,9 @@ diff_drive_controller:
 
     wheel_separation: 0.582
 
-    # TEMPORARY MOCK VALUE.
-    # Replace with actual measured/CAD wheel radius before real hardware.
-    wheel_radius: 0.10
+    # Measured 31 cm tire diameter (CAD outer: ~0.163 m).
+    # Calibrate by driving a known distance. Must match ipex.ros2_control.xacro.
+    wheel_radius: 0.155
 
     open_loop: true
     position_feedback: false
