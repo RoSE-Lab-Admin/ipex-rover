@@ -3,8 +3,9 @@
 # Sticks           : tank drive (left stick Y = left side, right stick Y = right side)
 # D-pad up/down    : max side speed +/- speed_step
 # D-pad left/right : drum speed -/+ drum_speed_step (all drums, continuous)
-# LB / LT          : rear arm up / down by arm_step_deg
-# RB / RT          : front arm up / down by arm_step_deg
+# LB / LT          : rear arm up / down   (tap = step arm_step_deg, hold = jog)
+# RB / RT          : front arm up / down  (tap = step arm_step_deg, hold = jog)
+#                    Both up+down on one arm = stop; release both to resume.
 # A                : HOME (CAL) all connected arms -- arms MOVE to limit switch
 # B                : ALL STOP (/ipex/all_stop -> STOP to every Teensy; drive + drums zero)
 #
@@ -42,9 +43,7 @@ controller:
     front_drum_direction: 1.0
     rear_drum_direction: -1.0   # Rear drums spin opposite to front
 
-    # Arms (deg). Must match firmware ARM_MIN_DEG / ARM_MAX_DEG in firmware/arm/arm.ino.
-    arm_step_deg: 5.0
-    front_arm_min_deg: -40.0
-    front_arm_max_deg: 45.0
-    rear_arm_min_deg: -40.0
-    rear_arm_max_deg: 45.0
+    # Arms. Angle limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG
+    # in firmware/arm/arm.ino), so they are not duplicated here.
+    arm_step_deg: 2.0       # Tap step (deg)
+    hold_threshold_s: 0.3   # Held longer than this = jog; shorter = tap

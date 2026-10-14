@@ -7,8 +7,8 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
 
 from geometry_msgs.msg import Twist
-from sensor_msgs.msg import Joy, JointState
-from std_msgs.msg import Bool, Empty, Float64MultiArray
+from sensor_msgs.msg import Joy
+from std_msgs.msg import Bool, Empty, Float64, Float64MultiArray, Int8
 
 
 # Logitech F710 -- X mode (joy_linux). Defaults; overridden by
@@ -40,19 +40,26 @@ DEFAULT_PARAMS = {
     'front_drum_direction': 1.0,
     'rear_drum_direction': -1.0,
 
-    'arm_step_deg': 5.0,
-    'front_arm_min_deg': -40.0,
-    'front_arm_max_deg': 45.0,
-    'rear_arm_min_deg': -40.0,
-    'rear_arm_max_deg': 45.0,
+    # Arms: tap (< hold_threshold_s) = one step; hold = jog until release.
+    # Limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG).
+    'arm_step_deg': 2.0,
+    'hold_threshold_s': 0.3,
 }
-
-FRONT_SHOULDER_JOINT = 'front_shoulder_rev'
-REAR_SHOULDER_JOINT = 'back_shoulder_rev'
 
 
 def clamp(value, low, high):
     return max(low, min(high, value))
+
+
+class ArmButtons:
+    """Tap / hold / conflict state for one arm's up + down inputs."""
+
+    def __init__(self, name):
+        self.name = name
+        self.press_start = None   # Time the current single-direction press began
+        self.press_dir = 0        # +1 up, -1 down, 0 none
+        self.jogging = False      # Jog commands are being published
+        self.locked = False       # Conflict / all-stop: wait for both released
 
 
 class Controller(Node):
@@ -75,9 +82,6 @@ class Controller(Node):
         self.joy_sub = self.create_subscription(
             Joy, '/joy', self.joy_callback, 10)
 
-        self.joint_state_sub = self.create_subscription(
-            JointState, '/joint_states', self.joint_state_callback, 10)
-
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
 
         # ALL STOP -> every Teensy (drivetrain + arms) receives STOP.
@@ -85,6 +89,17 @@ class Controller(Node):
 
         # HOME -> every connected arm Teensy receives CAL (arms MOVE).
         self.home_pub = self.create_publisher(Empty, '/ipex/home_arms', 10)
+
+        # Arm jog (+1/-1 while held, 0 on release) and tap steps (deg).
+        # IpexArmSystem stops a jog if /jog is not republished within 200 ms.
+        self.jog_pub = {
+            arm: self.create_publisher(Int8, f'/ipex/{arm}_arm/jog', 10)
+            for arm in ('front', 'rear')
+        }
+        self.step_pub = {
+            arm: self.create_publisher(Float64, f'/ipex/{arm}_arm/step', 10)
+            for arm in ('front', 'rear')
+        }
 
         # Arm homed status from IpexArmSystem (latched).
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -94,11 +109,6 @@ class Controller(Node):
         self.create_subscription(
             Bool, '/ipex/rear_arm/homed',
             lambda msg: self.homed_callback('rear', msg), latched)
-
-        self.front_shoulder_pub = self.create_publisher(
-            Float64MultiArray, '/front_shoulder_controller/commands', 10)
-        self.rear_shoulder_pub = self.create_publisher(
-            Float64MultiArray, '/rear_shoulder_controller/commands', 10)
 
         self.front_drum_pub = self.create_publisher(
             Float64MultiArray, '/front_drum_controller/commands', 10)
@@ -113,23 +123,14 @@ class Controller(Node):
         self.max_side_speed = self.p['min_side_speed']
         self.drum_speed = 0.0
 
-        # Latest measured shoulder angles (deg) from /joint_states.
-        self.front_arm_measured = None
-        self.rear_arm_measured = None
-
-        # Commanded shoulder targets (deg). None = seed from the measured
-        # angle on the next press, so presses step from where the arm is.
-        self.front_arm_target = None
-        self.rear_arm_target = None
-
         # Arms only accept presses once homed (reported by hardware).
         self.homed = {'front': False, 'rear': False}
+        self.arms = {'front': ArmButtons('front'), 'rear': ArmButtons('rear')}
 
         # Previous input states for rising-edge detection.
         self.prev = {
             'a': False,
             'b': False,
-            'lb': False, 'rb': False, 'lt': False, 'rt': False,
             'dpad_up': False, 'dpad_down': False,
             'dpad_left': False, 'dpad_right': False,
         }
@@ -158,33 +159,18 @@ class Controller(Node):
         self.prev[key] = pressed
         return edge
 
+    def now_s(self):
+        return self.get_clock().now().nanoseconds * 1e-9
+
     # -----------------------------------------------------
     # Callbacks
     # -----------------------------------------------------
-
-    def joint_state_callback(self, msg):
-        positions = dict(zip(msg.name, msg.position))
-
-        if FRONT_SHOULDER_JOINT in positions:
-            self.front_arm_measured = math.degrees(
-                positions[FRONT_SHOULDER_JOINT])
-
-        if REAR_SHOULDER_JOINT in positions:
-            self.rear_arm_measured = math.degrees(
-                positions[REAR_SHOULDER_JOINT])
 
     def homed_callback(self, arm, msg):
         if msg.data == self.homed[arm]:
             return
 
         self.homed[arm] = msg.data
-
-        # Position reference changed: reseed target from measured angle.
-        if arm == 'front':
-            self.front_arm_target = None
-        else:
-            self.rear_arm_target = None
-
         self.get_logger().info(
             f'{arm.capitalize()} arm {"HOMED" if msg.data else "NOT homed"}.')
 
@@ -220,9 +206,15 @@ class Controller(Node):
         self.drum_speed = 0.0
         self.publish_drums()
 
-        # Arms: next press steps from wherever the arm stopped.
-        self.front_arm_target = None
-        self.rear_arm_target = None
+        # Arms: end any jog and require all arm buttons released before
+        # they respond again.
+        for arm in self.arms.values():
+            if arm.jogging:
+                self.jog_pub[arm.name].publish(Int8(data=0))
+            arm.jogging = False
+            arm.press_start = None
+            arm.press_dir = 0
+            arm.locked = True
 
         self.get_logger().warn('ALL STOP: drive, drums, and arms stopped.')
 
@@ -275,60 +267,96 @@ class Controller(Node):
 
     def handle_arms(self, msg):
         threshold = self.p['trigger_pressed_threshold']
-        step = self.p['arm_step_deg']
 
-        lb = self.button(msg, self.p['left_bumper_button'])
-        rb = self.button(msg, self.p['right_bumper_button'])
-        lt = self.axis(msg, self.p['left_trigger_axis']) < threshold
-        rt = self.axis(msg, self.p['right_trigger_axis']) < threshold
+        # Rear arm: LB up, LT down. Front arm: RB up, RT down.
+        rear_up = self.button(msg, self.p['left_bumper_button'])
+        rear_down = self.axis(msg, self.p['left_trigger_axis']) < threshold
+        front_up = self.button(msg, self.p['right_bumper_button'])
+        front_down = self.axis(msg, self.p['right_trigger_axis']) < threshold
 
-        rear_delta = 0.0
-        front_delta = 0.0
+        now = self.now_s()
+        self.update_arm(self.arms['rear'], rear_up, rear_down, now)
+        self.update_arm(self.arms['front'], front_up, front_down, now)
 
-        # Rear arm: LB up, LT down
-        if self.rising('lb', lb):
-            rear_delta += step
-        if self.rising('lt', lt):
-            rear_delta -= step
+    def update_arm(self, arm, up, down, now):
+        label = arm.name.capitalize()
 
-        # Front arm: RB up, RT down
-        if self.rising('rb', rb):
-            front_delta += step
-        if self.rising('rt', rt):
-            front_delta -= step
+        # Locked after conflict / all stop: wait until both are released.
+        if arm.locked:
+            if not up and not down:
+                arm.locked = False
+            return
 
-        if rear_delta != 0.0:
-            self.rear_arm_target = self.step_arm(
-                'rear', self.rear_arm_target, self.rear_arm_measured,
-                rear_delta, self.p['rear_arm_min_deg'],
-                self.p['rear_arm_max_deg'], self.rear_shoulder_pub)
+        # Conflict: both pressed -> stop, then lock until both released.
+        if up and down:
+            if arm.jogging:
+                self.jog_pub[arm.name].publish(Int8(data=0))
+                self.get_logger().warn(f'{label} arm: conflicting input, jog stopped.')
+            arm.jogging = False
+            arm.press_start = None
+            arm.press_dir = 0
+            arm.locked = True
+            return
 
-        if front_delta != 0.0:
-            self.front_arm_target = self.step_arm(
-                'front', self.front_arm_target, self.front_arm_measured,
-                front_delta, self.p['front_arm_min_deg'],
-                self.p['front_arm_max_deg'], self.front_shoulder_pub)
+        direction = 1 if up else (-1 if down else 0)
 
-    def step_arm(self, arm, target, measured, delta, low, high, pub):
-        label = arm.capitalize()
+        # Released.
+        if direction == 0:
+            if arm.jogging:
+                self.jog_pub[arm.name].publish(Int8(data=0))
+                self.get_logger().info(f'{label} arm: jog released.')
+            elif arm.press_start is not None:
+                # Released before the hold threshold: a tap.
+                if now - arm.press_start < self.p['hold_threshold_s']:
+                    self.tap_arm(arm, arm.press_dir)
+            arm.jogging = False
+            arm.press_start = None
+            arm.press_dir = 0
+            return
 
-        if not self.homed[arm]:
+        # Direction switched between messages without both being seen
+        # pressed: treat like a conflict.
+        if arm.press_dir != 0 and direction != arm.press_dir:
+            if arm.jogging:
+                self.jog_pub[arm.name].publish(Int8(data=0))
+                self.get_logger().warn(f'{label} arm: direction switched, jog stopped.')
+            arm.jogging = False
+            arm.press_start = None
+            arm.press_dir = 0
+            arm.locked = True
+            return
+
+        # New press: start timing.
+        if arm.press_start is None:
+            arm.press_start = now
+            arm.press_dir = direction
+            return
+
+        # Held: past the threshold -> jog, republished every message.
+        if now - arm.press_start >= self.p['hold_threshold_s']:
+            if not self.homed[arm.name]:
+                if not arm.jogging:
+                    self.get_logger().warn(
+                        f'{label} arm not homed; jog ignored. Press A to home.')
+                    arm.locked = True    # One warning per press
+                return
+            if not arm.jogging:
+                self.get_logger().info(
+                    f'{label} arm: jog {"UP" if direction > 0 else "DOWN"}.')
+            arm.jogging = True
+            self.jog_pub[arm.name].publish(Int8(data=direction))
+
+    def tap_arm(self, arm, direction):
+        label = arm.name.capitalize()
+
+        if not self.homed[arm.name]:
             self.get_logger().warn(
-                f'{label} arm not homed; ignoring command. Press A to home.')
-            return None
+                f'{label} arm not homed; ignoring tap. Press A to home.')
+            return
 
-        if target is None:
-            if measured is None:
-                self.get_logger().warn(
-                    f'{label} arm position unknown (no /joint_states yet); '
-                    f'ignoring command.')
-                return None
-            target = measured
-
-        target = clamp(target + delta, low, high)
-        self.publish_arm(pub, target)
-        self.get_logger().info(f'{label} arm target: {target:.1f} deg')
-        return target
+        step = direction * self.p['arm_step_deg']
+        self.step_pub[arm.name].publish(Float64(data=step))
+        self.get_logger().info(f'{label} arm: step {step:+.1f} deg.')
 
     def handle_drive(self, msg):
         # Tank drive
@@ -344,10 +372,6 @@ class Controller(Node):
     # -----------------------------------------------------
     # Output helpers
     # -----------------------------------------------------
-
-    @staticmethod
-    def publish_arm(pub, target_deg):
-        pub.publish(Float64MultiArray(data=[math.radians(target_deg)]))
 
     def publish_drums(self):
         # steps/s -> rad/s for ros2_control. Hardware converts back.

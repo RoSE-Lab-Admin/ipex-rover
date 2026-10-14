@@ -2,6 +2,8 @@
 #define IPEX_HARDWARE__IPEX_ARM_SYSTEM_HPP_
 
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -12,6 +14,8 @@
 #include "rclcpp_lifecycle/state.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/empty.hpp"
+#include "std_msgs/msg/float64.hpp"
+#include "std_msgs/msg/int8.hpp"
 
 #include "ipex_hardware/serial_port.hpp"
 
@@ -36,6 +40,11 @@ namespace ipex_hardware
 //   /ipex/all_stop            (std_msgs/Empty, sub)  -> "STOP"
 //   /ipex/home_arms           (std_msgs/Empty, sub)  -> "CAL"
 //   /ipex/<arm_name>/homed    (std_msgs/Bool, pub, transient local)
+//   /ipex/<arm_name>/jog      (std_msgs/Int8, sub)   +1 up / -1 down / 0 stop
+//       Must be republished while held. No message within jog_timeout_ms
+//       -> "JOG STOP". While jogging, "JOG UP|DOWN" keepalives are sent to
+//       the Teensy every jog_keepalive_ms (Teensy stops after 250 ms without).
+//   /ipex/<arm_name>/step     (std_msgs/Float64, sub) relative degrees -> "STEP <deg>"
 class IpexArmSystem : public hardware_interface::SystemInterface
 {
 public:
@@ -88,8 +97,22 @@ private:
   std::atomic<bool> stop_requested_{false};
   std::atomic<bool> home_requested_{false};
 
+  // Jog: latest requested direction and when it arrived (steady clock, ns).
+  std::atomic<int> jog_requested_dir_{0};
+  std::atomic<int64_t> jog_stamp_ns_{0};
+  int jog_sent_dir_ = 0;                       // Last direction sent to Teensy
+  bool jog_blocked_ = false;                   // After STOP: wait for release
+  std::chrono::steady_clock::time_point last_jog_sent_;
+  std::chrono::milliseconds jog_timeout_{200};
+  std::chrono::milliseconds jog_keepalive_{100};
+
+  // Taps: accumulated relative degrees not yet sent.
+  std::atomic<double> pending_step_deg_{0.0};
+
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr all_stop_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr home_sub_;
+  rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr jog_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr step_sub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr homed_pub_;
 };
 

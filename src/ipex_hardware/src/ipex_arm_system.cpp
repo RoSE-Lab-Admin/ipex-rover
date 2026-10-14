@@ -23,6 +23,12 @@ bool starts_with(const std::string & s, const char * prefix)
   return s.rfind(prefix, 0) == 0;
 }
 
+int64_t steady_now_ns()
+{
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 std::string param_or(
   const std::unordered_map<std::string, std::string> & params,
   const std::string & key, const std::string & fallback)
@@ -51,6 +57,10 @@ hardware_interface::CallbackReturn IpexArmSystem::on_init(
     serial_baud_ = std::stoi(param_or(hw, "serial_baud", "115200"));
     drum_steps_per_rev_ = std::stod(param_or(hw, "drum_steps_per_rev", "400"));
     home_on_activate_ = param_or(hw, "home_on_activate", "false") == "true";
+    jog_timeout_ = std::chrono::milliseconds(
+      std::stoi(param_or(hw, "jog_timeout_ms", "200")));
+    jog_keepalive_ = std::chrono::milliseconds(
+      std::stoi(param_or(hw, "jog_keepalive_ms", "100")));
   } catch (const std::exception & e) {
     RCLCPP_ERROR(get_logger(), "Invalid or missing arm hardware parameter: %s", e.what());
     return hardware_interface::CallbackReturn::ERROR;
@@ -109,6 +119,11 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
   homed_ = false;
   stop_requested_ = false;
   home_requested_ = false;
+  jog_requested_dir_ = 0;
+  jog_stamp_ns_ = 0;
+  jog_sent_dir_ = 0;
+  jog_blocked_ = false;
+  pending_step_deg_ = 0.0;
 
   port_ = std::make_unique<SerialPort>(serial_device_, serial_baud_);
   if (!port_->open()) {
@@ -136,6 +151,24 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
   home_sub_ = node->create_subscription<std_msgs::msg::Empty>(
     "/ipex/home_arms", 10,
     [this](const std_msgs::msg::Empty &) {home_requested_ = true;});
+
+  jog_sub_ = node->create_subscription<std_msgs::msg::Int8>(
+    "/ipex/" + arm_name_ + "/jog", 10,
+    [this](const std_msgs::msg::Int8 & msg) {
+      jog_requested_dir_ = (msg.data > 0) ? 1 : (msg.data < 0 ? -1 : 0);
+      jog_stamp_ns_ = steady_now_ns();
+    });
+
+  step_sub_ = node->create_subscription<std_msgs::msg::Float64>(
+    "/ipex/" + arm_name_ + "/step", 10,
+    [this](const std_msgs::msg::Float64 & msg) {
+      if (!std::isfinite(msg.data)) {
+        return;
+      }
+      double current = pending_step_deg_.load();
+      while (!pending_step_deg_.compare_exchange_weak(current, current + msg.data)) {
+      }
+    });
 
   RCLCPP_INFO(get_logger(), "Arm '%s' configured on %s.", arm_name_.c_str(),
     serial_device_.c_str());
@@ -176,6 +209,8 @@ hardware_interface::CallbackReturn IpexArmSystem::on_cleanup(
 {
   all_stop_sub_.reset();
   home_sub_.reset();
+  jog_sub_.reset();
+  step_sub_.reset();
   homed_pub_.reset();
   port_.reset();
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -231,8 +266,11 @@ void IpexArmSystem::handle_line(const std::string & line)
     RCLCPP_WARN(get_logger(), "Arm '%s': homing ABORTED (not homed).", arm_name_.c_str());
   } else if (line == "STOPPED") {
     RCLCPP_WARN(get_logger(), "Arm '%s': STOPPED, brake engaged.", arm_name_.c_str());
-  } else if (starts_with(line, "ARM_DONE")) {
+  } else if (starts_with(line, "ARM_DONE") || starts_with(line, "JOG_DONE")) {
     RCLCPP_INFO(get_logger(), "Arm '%s': %s", arm_name_.c_str(), line.c_str());
+  } else if (starts_with(line, "JOG_LIMIT")) {
+    RCLCPP_WARN(get_logger(), "Arm '%s': jog refused at limit (%s)", arm_name_.c_str(),
+      line.c_str());
   } else if (starts_with(line, "ERR")) {
     RCLCPP_WARN(get_logger(), "Arm '%s' Teensy: %s", arm_name_.c_str(), line.c_str());
   } else if (starts_with(line, "#")) {
@@ -277,7 +315,62 @@ hardware_interface::return_type IpexArmSystem::write(
     }
     last_sent_shoulder_rad_ = shoulder_cmd;
     last_sent_drum_rad_s_ = 0.0;
+    // Drop any jog / taps in flight: a new press is required after STOP.
+    jog_requested_dir_ = 0;
+    jog_sent_dir_ = 0;
+    jog_blocked_ = true;
+    pending_step_deg_ = 0.0;
     return hardware_interface::return_type::OK;
+  }
+
+  // JOG: the requested direction is only valid while fresh.
+  {
+    const auto now = std::chrono::steady_clock::now();
+    const auto age = std::chrono::nanoseconds(steady_now_ns() - jog_stamp_ns_.load());
+    int desired = (age <= jog_timeout_) ? jog_requested_dir_.load() : 0;
+
+    // After STOP, ignore jog until it has been released (0 or stale).
+    if (jog_blocked_) {
+      if (desired == 0) {
+        jog_blocked_ = false;
+      }
+      desired = 0;
+    }
+
+    const char * jog_line = nullptr;
+    if (desired != 0) {
+      if (desired != jog_sent_dir_ || now - last_jog_sent_ >= jog_keepalive_) {
+        jog_line = (desired > 0) ? "JOG UP" : "JOG DOWN";
+      }
+    } else if (jog_sent_dir_ != 0) {
+      jog_line = "JOG STOP";
+      if (age > jog_timeout_) {
+        RCLCPP_WARN(get_logger(), "Arm '%s': jog command stale, stopping jog.",
+          arm_name_.c_str());
+      }
+    }
+
+    if (jog_line) {
+      if (!port_->write_line(jog_line)) {
+        RCLCPP_ERROR(get_logger(), "Arm '%s': failed to send %s: %s",
+          arm_name_.c_str(), jog_line, port_->last_error().c_str());
+        return hardware_interface::return_type::ERROR;
+      }
+      jog_sent_dir_ = desired;
+      last_jog_sent_ = now;
+    }
+  }
+
+  // Taps: relative steps, accumulated between cycles.
+  const double step_deg = pending_step_deg_.exchange(0.0);
+  if (step_deg != 0.0) {
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "STEP %.2f", step_deg);
+    if (!port_->write_line(buf)) {
+      RCLCPP_ERROR(get_logger(), "Arm '%s': failed to send %s: %s",
+        arm_name_.c_str(), buf, port_->last_error().c_str());
+      return hardware_interface::return_type::ERROR;
+    }
   }
 
   if (home_requested_.exchange(false)) {
