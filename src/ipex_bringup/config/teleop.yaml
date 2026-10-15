@@ -31,9 +31,12 @@ controller:
     trigger_pressed_threshold: 0.0
 
     # Drive
-    min_side_speed: 0.10    # m/s
-    max_side_speed: 0.90    # m/s
-    speed_step: 0.10        # m/s
+    # Closed-loop (RoboClaw PID) speeds: these are real m/s at the wheel.
+    # Motor top speed ~4.2 m/s (260 RPM, 0.155 m radius; firmware caps at
+    # 8640 QPPS). D-pad steps ~10% .. ~83% of top speed.
+    min_side_speed: 0.35    # m/s
+    max_side_speed: 3.50    # m/s
+    speed_step: 0.35        # m/s
     wheel_separation: 0.582 # m, must match diff_drive_controller
 
     # Drums (steps/s, firmware max 3200)

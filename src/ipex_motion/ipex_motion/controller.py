@@ -29,9 +29,9 @@ DEFAULT_PARAMS = {
     'right_bumper_button': 5,
     'trigger_pressed_threshold': 0.0,
 
-    'min_side_speed': 0.10,
-    'max_side_speed': 0.90,
-    'speed_step': 0.10,
+    'min_side_speed': 0.35,
+    'max_side_speed': 3.50,
+    'speed_step': 0.35,
     'wheel_separation': 0.582,
 
     'drum_speed_step': 500.0,
