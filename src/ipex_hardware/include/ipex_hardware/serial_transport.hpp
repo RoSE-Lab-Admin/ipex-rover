@@ -1,6 +1,7 @@
 #ifndef IPEX_HARDWARE__SERIAL_TRANSPORT_HPP_
 #define IPEX_HARDWARE__SERIAL_TRANSPORT_HPP_
 
+#include <array>
 #include <memory>
 #include <string>
 
@@ -45,6 +46,15 @@ private:
     float back_right,
     float front_right,
     float front_left);
+
+  // Arm power sensors (read by the drivetrain Teensy). Index order:
+  //   0 rear drum, 1 rear shoulder, 2 front drum, 3 front shoulder.
+  void publish_arm_values(
+    const std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> & pubs,
+    const float values[4]);
+
+  std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> arm_current_pubs_;
+  std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> arm_voltage_pubs_;
 
   rclcpp::Node::SharedPtr node_;
 

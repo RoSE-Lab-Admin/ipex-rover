@@ -39,6 +39,20 @@ SerialTransport::SerialTransport(
   front_left_current_pub_ =
     node_->create_publisher<std_msgs::msg::Float32>("/rover/front_left/current", 10);
 
+  // Arm power sensors: /rover/<arm>/<part>/{current,voltage}
+  const char * arm_prefixes[4] = {
+    "/rover/rear_arm/drum",
+    "/rover/rear_arm/shoulder",
+    "/rover/front_arm/drum",
+    "/rover/front_arm/shoulder",
+  };
+  for (size_t i = 0; i < 4; ++i) {
+    arm_current_pubs_[i] = node_->create_publisher<std_msgs::msg::Float32>(
+      std::string(arm_prefixes[i]) + "/current", 10);
+    arm_voltage_pubs_[i] = node_->create_publisher<std_msgs::msg::Float32>(
+      std::string(arm_prefixes[i]) + "/voltage", 10);
+  }
+
   open_port();
 }
 
@@ -195,8 +209,41 @@ void SerialTransport::publish_currents(
 }
 
 
+void SerialTransport::publish_arm_values(
+  const std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> & pubs,
+  const float values[4])
+{
+  std_msgs::msg::Float32 msg;
+  for (size_t i = 0; i < 4; ++i) {
+    msg.data = values[i];
+    pubs[i]->publish(msg);
+  }
+}
+
+
 void SerialTransport::handle_line(const std::string & line)
 {
+  // Arm power sensors: rear drum, rear shoulder, front drum, front shoulder.
+  {
+    float arm[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    if (std::sscanf(
+        line.c_str(), "ARM_CURR %f %f %f %f",
+        &arm[0], &arm[1], &arm[2], &arm[3]) == 4)
+    {
+      publish_arm_values(arm_current_pubs_, arm);
+      return;
+    }
+
+    if (std::sscanf(
+        line.c_str(), "ARM_VOLT %f %f %f %f",
+        &arm[0], &arm[1], &arm[2], &arm[3]) == 4)
+    {
+      publish_arm_values(arm_voltage_pubs_, arm);
+      return;
+    }
+  }
+
   float back_left = 0.0f;
   float back_right = 0.0f;
   float front_right = 0.0f;

@@ -24,12 +24,16 @@ RoboClaw roboclaw2(&Serial3, 10000);
 // Raspberry Pi -> Teensy:
 //   DRIVE <left_wheel_rad_s> <right_wheel_rad_s>
 //   CAL_CURRENT
+//   CAL_ARM_CURRENT           (zero arm current sensors; loads disconnected)
 //   STOP                      (stop all motors immediately)
 //
 // Teensy -> Raspberry Pi:
 //   STOPPED
 //   VOLT <back_left> <back_right> <front_right> <front_left>
 //   CURR <back_left> <back_right> <front_right> <front_left>
+//   ARM_CURR <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>   (A)
+//   ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>   (V)
+//   CAL_ARM_CURRENT START / CAL_ARM_CURRENT OK <z0> <z1> <z2> <z3>
 //   CAL_CURRENT START
 //   CAL_CURRENT OK
 // -----------------------------------------------------------------------------
@@ -91,6 +95,57 @@ constexpr bool AUTO_CALIBRATE_CURRENT_AT_BOOT = true;
 
 float current_zero_offsets[NUM_CURRENT_CHANNELS] = {0.0f, 0.0f, 0.0f, 0.0f};
 float current_smoothed_pin_voltages[NUM_CURRENT_CHANNELS] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+// -----------------------------------------------------------------------------
+// ARM POWER SENSORS (current + voltage on each arm's driver supply)
+//
+// Channel order (all ARM_* arrays and telemetry):
+//   [0] rear drum   [1] rear shoulder   [2] front drum   [3] front shoulder
+//
+// Sensors: UMLIFE kit -- ACS712 30A current module + DC 0-25V voltage module.
+// Teensy 4.x analog pins are 3.3 V MAX (not 5 V tolerant). Every module
+// output goes through a 5 V -> 3.3 V divider (ratio 1.5):
+//   - Current: ACS712 output / 1.5 -> ARM_CURRENT_DIVIDER_RATIO = 1.5.
+//   - Voltage: 0-25V module (passive divider, no output cap) then the
+//     5 V -> 3.3 V divider. Bench-measured total ratio = 11.8:1
+//     (27.5 V -> 2.33 V), so a full 7S pack (29.4 V) -> ~2.5 V at the pin.
+//     Full scale at 3.3 V = ~38.9 V.
+// -----------------------------------------------------------------------------
+constexpr int NUM_ARM_CHANNELS = 4;
+// Wiring: rear arm on 16-19, front arm on 38-41.
+//   16 rear drum I     17 rear drum V     18 rear shoulder I   19 rear shoulder V
+//   38 front shldr V   39 front shldr I   40 front drum V      41 front drum I
+const int ARM_CURRENT_PINS[NUM_ARM_CHANNELS] = {16, 18, 41, 39};
+const int ARM_VOLTAGE_PINS[NUM_ARM_CHANNELS] = {17, 19, 40, 38};
+
+constexpr float ARM_CURRENT_DIVIDER_RATIO = 1.5f;   // reconstruct ACS712 output voltage
+constexpr float ARM_CURRENT_SENSITIVITY = 0.066f;   // V/A for ACS712 30A model
+
+// ACS712 output at 0 A, in sensor-side volts (nominal = 5 V supply / 2).
+//   Drums [0],[2]: auto-zeroed at boot (drum drivers are disabled until the
+//     arm Teensy receives a DRUM command, so their current is ~0).
+//   Shoulders [1],[3]: always energized (holding current), so never at 0 A
+//     in operation. Zero ONCE by hand: disconnect the shoulder driver supply
+//     leads downstream of the sensors, send CAL_ARM_CURRENT, paste the printed
+//     values here, reflash. Redo only if the sensors or 5 V supply change.
+// Measured 2026-10-15 with CAL_ARM_CURRENT (sensors powered, no load current).
+float arm_current_zero_v[NUM_ARM_CHANNELS] = {2.4487f, 2.6483f, 2.4474f, 2.4952f};
+
+constexpr bool AUTO_ZERO_ARM_DRUMS_AT_BOOT = true;
+const bool ARM_CHANNEL_IS_DRUM[NUM_ARM_CHANNELS] = {true, false, true, false};
+
+// Measured volts per pin volt. 11.8 from the bench test (Uno ADC); trim each
+// channel on the Teensy against a multimeter: new = old * (meter / reading).
+const float ARM_VOLTAGE_DIVIDER_RATIO[NUM_ARM_CHANNELS] = {11.8f, 11.8f, 11.8f, 11.8f};
+
+constexpr int ARM_OVERSAMPLE_COUNT = 64;
+// Light smoothing between 10 Hz samples (1.0 = none). Kept low so power
+// transients stay visible for characterization.
+constexpr float ARM_ALPHA = 0.5f;
+
+float arm_current_smoothed[NUM_ARM_CHANNELS] = {0.0f, 0.0f, 0.0f, 0.0f};
+float arm_voltage_smoothed[NUM_ARM_CHANNELS] = {0.0f, 0.0f, 0.0f, 0.0f};
+bool arm_sensors_initialized = false;
 
 constexpr size_t RX_BUFFER_SIZE = 96;
 char rx_buffer[RX_BUFFER_SIZE];
@@ -218,6 +273,115 @@ void read_currents(float currents[NUM_CURRENT_CHANNELS]) {
 
 
 // -----------------------------------------------------------------------------
+// ARM POWER SENSORS
+// -----------------------------------------------------------------------------
+
+// Average pin voltage over `samples` ADC reads.
+float read_pin_voltage(int pin, int samples) {
+  uint32_t adc_sum = 0;
+
+  for (int i = 0; i < samples; ++i) {
+    adc_sum += analogRead(pin);
+  }
+
+  return (adc_sum / static_cast<float>(samples) / ADC_MAX) * ADC_VREF;
+}
+
+
+// Measure the 0 A sensor-side output of one arm current channel.
+float measure_arm_current_zero(int ch) {
+  float pin_voltage_sum = 0.0f;
+
+  for (int i = 0; i < CURRENT_CALIBRATION_SAMPLES; ++i) {
+    pin_voltage_sum += read_pin_voltage(ARM_CURRENT_PINS[ch], 1);
+    delay(1);
+  }
+
+  return (pin_voltage_sum / CURRENT_CALIBRATION_SAMPLES) * ARM_CURRENT_DIVIDER_RATIO;
+}
+
+
+// Boot: zero only the drum channels (drums are idle at boot). Shoulder
+// channels keep their stored values.
+void auto_zero_arm_drum_currents() {
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    if (ARM_CHANNEL_IS_DRUM[ch]) {
+      arm_current_zero_v[ch] = measure_arm_current_zero(ch);
+    }
+  }
+  arm_sensors_initialized = false;
+}
+
+
+// Manual: zero ALL four channels. Only valid with NO current through the
+// sensors (driver supply leads unplugged downstream of the sensors).
+// Prints the values to paste into arm_current_zero_v.
+void calibrate_arm_current_sensors() {
+  stop_all_motors();
+  have_command = false;
+  digitalWrite(LED_PIN, LOW);
+
+  Serial.println("CAL_ARM_CURRENT START");
+
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    arm_current_zero_v[ch] = measure_arm_current_zero(ch);
+  }
+
+  arm_sensors_initialized = false;  // Restart smoothing from fresh readings
+  flush_usb_rx();
+
+  Serial.print("CAL_ARM_CURRENT OK ");
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    Serial.print(arm_current_zero_v[ch], 4);
+    Serial.print(ch < NUM_ARM_CHANNELS - 1 ? ' ' : '\n');
+  }
+}
+
+
+void read_and_send_arm_sensors() {
+  float currents[NUM_ARM_CHANNELS];
+  float voltages[NUM_ARM_CHANNELS];
+
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    const float sensor_v =
+      read_pin_voltage(ARM_CURRENT_PINS[ch], ARM_OVERSAMPLE_COUNT) *
+      ARM_CURRENT_DIVIDER_RATIO;
+    currents[ch] = (sensor_v - arm_current_zero_v[ch]) / ARM_CURRENT_SENSITIVITY;
+
+    voltages[ch] =
+      read_pin_voltage(ARM_VOLTAGE_PINS[ch], ARM_OVERSAMPLE_COUNT) *
+      ARM_VOLTAGE_DIVIDER_RATIO[ch];
+  }
+
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    if (!arm_sensors_initialized) {
+      arm_current_smoothed[ch] = currents[ch];
+      arm_voltage_smoothed[ch] = voltages[ch];
+    } else {
+      arm_current_smoothed[ch] =
+        ARM_ALPHA * currents[ch] + (1.0f - ARM_ALPHA) * arm_current_smoothed[ch];
+      arm_voltage_smoothed[ch] =
+        ARM_ALPHA * voltages[ch] + (1.0f - ARM_ALPHA) * arm_voltage_smoothed[ch];
+    }
+  }
+  arm_sensors_initialized = true;
+
+  // Order: rear drum, rear shoulder, front drum, front shoulder.
+  Serial.print("ARM_CURR ");
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    Serial.print(arm_current_smoothed[ch], 3);
+    Serial.print(ch < NUM_ARM_CHANNELS - 1 ? ' ' : '\n');
+  }
+
+  Serial.print("ARM_VOLT ");
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    Serial.print(arm_voltage_smoothed[ch], 3);
+    Serial.print(ch < NUM_ARM_CHANNELS - 1 ? ' ' : '\n');
+  }
+}
+
+
+// -----------------------------------------------------------------------------
 // USB COMMAND INPUT
 // -----------------------------------------------------------------------------
 
@@ -235,6 +399,11 @@ void handle_command(char *line) {
 
   if (strcmp(line, "CAL_CURRENT") == 0) {
     calibrate_current_sensors();
+    return;
+  }
+
+  if (strcmp(line, "CAL_ARM_CURRENT") == 0) {
+    calibrate_arm_current_sensors();
     return;
   }
 
@@ -358,6 +527,11 @@ void setup() {
     pinMode(CURRENT_SENSOR_PINS[ch], INPUT);
   }
 
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    pinMode(ARM_CURRENT_PINS[ch], INPUT);
+    pinMode(ARM_VOLTAGE_PINS[ch], INPUT);
+  }
+
   // Match the 10-bit ADC assumption inherited from the current-sensor test code.
   analogReadResolution(10);
 
@@ -376,6 +550,10 @@ void setup() {
   if (AUTO_CALIBRATE_CURRENT_AT_BOOT) {
     calibrate_current_sensors();
   }
+
+  if (AUTO_ZERO_ARM_DRUMS_AT_BOOT) {
+    auto_zero_arm_drum_currents();
+  }
 }
 
 
@@ -386,6 +564,7 @@ void loop() {
     last_telemetry_time = millis();
     read_and_send_voltages();
     read_and_send_currents();
+    read_and_send_arm_sensors();
   }
 
   if (have_command && (millis() - last_command_time > COMMAND_TIMEOUT_MS)) {
