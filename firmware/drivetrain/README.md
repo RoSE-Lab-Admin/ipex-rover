@@ -16,6 +16,8 @@ Drives both RoboClaws (velocity PID speed commands) and reads all power sensors:
 | Teensy → Pi | `CURR <bl> <br> <fr> <fl>` | Drive motor currents (A) |
 | Teensy → Pi | `ARM_CURR <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply currents (A), 10 Hz |
 | Teensy → Pi | `ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply voltages (V), 10 Hz |
+| Teensy → Pi | `BATT <drivetrain_V> <pi_arm_V>` | Battery voltages (V), 10 Hz |
+| Teensy → Pi | `RC_CURR <bl> <br> <fr> <fl>` | Motor currents measured by the RoboClaws (A, signed; `nan` if no reply), 10 Hz |
 | Teensy → Pi | `CAL_CURRENT START` / `CAL_CURRENT OK` | Drive current calibration status |
 | Teensy → Pi | `CAL_ARM_CURRENT START` / `CAL_ARM_CURRENT OK <z0> <z1> <z2> <z3>` | Arm current zeros (sensor-side volts) to paste into `arm_current_zero_v` |
 | Teensy → Pi | `STOPPED` | STOP complete |
@@ -37,4 +39,15 @@ UMLIFE kit: ACS712 30A current module (0.066 V/A) + DC 0-25V voltage module (5:1
 
 **Teensy analog pins are 3.3 V max.** Every module output goes through a 5 V to 3.3 V divider (ratio 1.5). Voltage channels: bench-measured total ratio **11.8:1** (not the 7.5 the nominal values suggest; module and divider load each other). A full 7S pack (29.4 V) gives ~2.5 V at the pin; full scale ~38.9 V. Trim each channel against a multimeter (`ARM_VOLTAGE_DIVIDER_RATIO`).
 
-Zero-current offsets: nominal 2.5 V. To trim, disconnect each arm driver supply lead downstream of its sensor, send `CAL_ARM_CURRENT`, and paste the printed values into `arm_current_zero_v`.
+## Battery voltage sensors
+
+Same 0-25V module + divider as the arm voltage channels, inline on each battery.
+
+| Pin | Signal | ROS topic |
+|---|---|---|
+| 24 | Drivetrain battery voltage | `/rover/drive_battery/voltage` |
+| 25 | Pi / arm battery voltage | `/rover/arm_battery/voltage` |
+
+Ratio starts at 11.8; trim each channel against a multimeter (`BATTERY_VOLTAGE_DIVIDER_RATIO`).
+
+Zero-current offsets are stored constants (manual calibration 2026-10-15); there is no boot auto-zero for the arm channels. To redo them, disconnect each arm driver supply lead downstream of its sensor, send `CAL_ARM_CURRENT`, and paste the printed values into `arm_current_zero_v`.

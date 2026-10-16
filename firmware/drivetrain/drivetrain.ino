@@ -33,6 +33,8 @@ RoboClaw roboclaw2(&Serial3, 10000);
 //   CURR <back_left> <back_right> <front_right> <front_left>
 //   ARM_CURR <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>   (A)
 //   ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>   (V)
+//   BATT <drivetrain_battery_V> <pi_arm_battery_V>                       (V)
+//   RC_CURR <back_left> <back_right> <front_right> <front_left>          (A, from RoboClaw)
 //   CAL_ARM_CURRENT START / CAL_ARM_CURRENT OK <z0> <z1> <z2> <z3>
 //   CAL_CURRENT START
 //   CAL_CURRENT OK
@@ -122,8 +124,9 @@ constexpr float ARM_CURRENT_DIVIDER_RATIO = 1.5f;   // reconstruct ACS712 output
 constexpr float ARM_CURRENT_SENSITIVITY = 0.066f;   // V/A for ACS712 30A model
 
 // ACS712 output at 0 A, in sensor-side volts (nominal = 5 V supply / 2).
-//   Drums [0],[2]: auto-zeroed at boot (drum drivers are disabled until the
-//     arm Teensy receives a DRUM command, so their current is ~0).
+//   All channels use these stored values (no boot auto-zero; see
+//     AUTO_ZERO_ARM_DRUMS_AT_BOOT). Re-run CAL_ARM_CURRENT only if a sensor or
+//     the 5 V supply changes.
 //   Shoulders [1],[3]: always energized (holding current), so never at 0 A
 //     in operation. Zero ONCE by hand: disconnect the shoulder driver supply
 //     leads downstream of the sensors, send CAL_ARM_CURRENT, paste the printed
@@ -131,7 +134,9 @@ constexpr float ARM_CURRENT_SENSITIVITY = 0.066f;   // V/A for ACS712 30A model
 // Measured 2026-10-15 with CAL_ARM_CURRENT (sensors powered, no load current).
 float arm_current_zero_v[NUM_ARM_CHANNELS] = {2.4487f, 2.6483f, 2.4474f, 2.4952f};
 
-constexpr bool AUTO_ZERO_ARM_DRUMS_AT_BOOT = true;
+// Off: all four arm channels use the stored manual zeros above. A boot-time
+// zero is unreliable (sensors may not have 5 V yet, drums may be moving).
+constexpr bool AUTO_ZERO_ARM_DRUMS_AT_BOOT = false;
 const bool ARM_CHANNEL_IS_DRUM[NUM_ARM_CHANNELS] = {true, false, true, false};
 
 // Measured volts per pin volt. 11.8 from the bench test (Uno ADC); trim each
@@ -146,6 +151,21 @@ constexpr float ARM_ALPHA = 0.5f;
 float arm_current_smoothed[NUM_ARM_CHANNELS] = {0.0f, 0.0f, 0.0f, 0.0f};
 float arm_voltage_smoothed[NUM_ARM_CHANNELS] = {0.0f, 0.0f, 0.0f, 0.0f};
 bool arm_sensors_initialized = false;
+
+// -----------------------------------------------------------------------------
+// BATTERY VOLTAGE SENSORS (same 0-25V module + 5V->3.3V divider as the arm
+// voltage channels), inline on each battery's main leads.
+//   [0] drivetrain battery   [1] Pi / arm battery
+// -----------------------------------------------------------------------------
+constexpr int NUM_BATTERY_CHANNELS = 2;
+const int BATTERY_VOLTAGE_PINS[NUM_BATTERY_CHANNELS] = {24, 25};
+
+// Measured volts per pin volt. Start at the bench ratio; trim each channel
+// against a multimeter: new = old * (meter / reading).
+const float BATTERY_VOLTAGE_DIVIDER_RATIO[NUM_BATTERY_CHANNELS] = {11.8f, 11.8f};
+
+float battery_voltage_smoothed[NUM_BATTERY_CHANNELS] = {0.0f, 0.0f};
+bool battery_sensors_initialized = false;
 
 constexpr size_t RX_BUFFER_SIZE = 96;
 char rx_buffer[RX_BUFFER_SIZE];
@@ -381,6 +401,26 @@ void read_and_send_arm_sensors() {
 }
 
 
+// Order: drivetrain battery, Pi / arm battery.
+void read_and_send_battery_voltages() {
+  for (int ch = 0; ch < NUM_BATTERY_CHANNELS; ++ch) {
+    const float volts =
+      read_pin_voltage(BATTERY_VOLTAGE_PINS[ch], ARM_OVERSAMPLE_COUNT) *
+      BATTERY_VOLTAGE_DIVIDER_RATIO[ch];
+
+    battery_voltage_smoothed[ch] = battery_sensors_initialized
+      ? ARM_ALPHA * volts + (1.0f - ARM_ALPHA) * battery_voltage_smoothed[ch]
+      : volts;
+  }
+  battery_sensors_initialized = true;
+
+  Serial.print("BATT ");
+  Serial.print(battery_voltage_smoothed[0], 3);
+  Serial.print(' ');
+  Serial.println(battery_voltage_smoothed[1], 3);
+}
+
+
 // -----------------------------------------------------------------------------
 // USB COMMAND INPUT
 // -----------------------------------------------------------------------------
@@ -495,6 +535,33 @@ void read_and_send_voltages() {
 }
 
 
+// Motor currents as measured by the RoboClaws themselves (what their current
+// limit acts on). RoboClaw reports signed values in 10 mA units.
+// Same order as CURR: back left, back right, front right, front left.
+// Prints "nan" for a RoboClaw that did not answer.
+void read_and_send_roboclaw_currents() {
+  int16_t back_m1 = 0, back_m2 = 0, front_m1 = 0, front_m2 = 0;
+
+  const bool back_valid = roboclaw1.ReadCurrents(RC_ADDRESS, back_m1, back_m2);
+  const bool front_valid = roboclaw2.ReadCurrents(RC_ADDRESS, front_m1, front_m2);
+
+  // RoboClaw 1 (back): M1 = back left, M2 = back right.
+  // RoboClaw 2 (front): M1 = front right, M2 = front left.
+  const float values[4] = {
+    back_valid ? back_m1 / 100.0f : NAN,
+    back_valid ? back_m2 / 100.0f : NAN,
+    front_valid ? front_m1 / 100.0f : NAN,
+    front_valid ? front_m2 / 100.0f : NAN,
+  };
+
+  Serial.print("RC_CURR ");
+  for (int i = 0; i < 4; ++i) {
+    Serial.print(values[i], 2);
+    Serial.print(i < 3 ? ' ' : '\n');
+  }
+}
+
+
 void read_and_send_currents() {
   float currents[NUM_CURRENT_CHANNELS];
   read_currents(currents);
@@ -532,6 +599,10 @@ void setup() {
     pinMode(ARM_VOLTAGE_PINS[ch], INPUT);
   }
 
+  for (int ch = 0; ch < NUM_BATTERY_CHANNELS; ++ch) {
+    pinMode(BATTERY_VOLTAGE_PINS[ch], INPUT);
+  }
+
   // Match the 10-bit ADC assumption inherited from the current-sensor test code.
   analogReadResolution(10);
 
@@ -564,7 +635,9 @@ void loop() {
     last_telemetry_time = millis();
     read_and_send_voltages();
     read_and_send_currents();
+    read_and_send_roboclaw_currents();
     read_and_send_arm_sensors();
+    read_and_send_battery_voltages();
   }
 
   if (have_command && (millis() - last_command_time > COMMAND_TIMEOUT_MS)) {

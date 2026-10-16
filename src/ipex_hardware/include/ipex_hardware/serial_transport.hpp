@@ -56,6 +56,13 @@ private:
   std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> arm_current_pubs_;
   std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> arm_voltage_pubs_;
 
+  // Motor currents measured by the RoboClaws. Index order (same as CURR):
+  //   0 back left, 1 back right, 2 front right, 3 front left.
+  std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> roboclaw_current_pubs_;
+
+  // Battery voltage sensors: 0 drivetrain battery, 1 Pi / arm battery.
+  std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 2> battery_voltage_pubs_;
+
   rclcpp::Node::SharedPtr node_;
 
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr back_left_voltage_pub_;
