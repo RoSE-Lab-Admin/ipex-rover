@@ -1,0 +1,6 @@
+# ipex_energy/energy_meter
+energy_meter:
+  ros__parameters:
+    rate_hz: 10.0            # integration + publish rate (sensors report at 10 Hz)
+    stale_timeout_s: 0.5     # channel counts as 0 W if V or I is older than this
+    arm_current_sign: -1.0   # arm current sensors read negative when drawing power

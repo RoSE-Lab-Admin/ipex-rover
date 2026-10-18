@@ -86,6 +86,21 @@ def generate_launch_description():
         respawn_delay=5.0,
     )
 
+    # Power + cumulative energy for every measured channel -> /ipex/energy.
+    energy_meter = Node(
+        package='ipex_energy',
+        executable='energy_meter',
+        name='energy_meter',
+        parameters=[
+            PathJoinSubstitution([
+                FindPackageShare('ipex_bringup'),
+                'config',
+                'energy.yaml',
+            ])
+        ],
+        output='screen',
+    )
+
     # Avionics and battery MCP9808 temperature sensors.
     temperature_node = Node(
         package='ipex_sensors',
@@ -100,5 +115,6 @@ def generate_launch_description():
         cmd_vel_bridge,
         controller,
         temperature_node,
+        energy_meter,
         joy,
     ])
