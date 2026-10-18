@@ -7,8 +7,8 @@ from sensor_msgs.msg import Temperature
 
 I2C_BUS = 1
 
-BATTERY_ADDR = 0x19
-AVIONICS_ADDR = 0x18
+AVIONICS_ADDR = 0x19
+BATTERY_ADDR = 0x18
 
 MCP9808_TEMP_REG = 0x05
 

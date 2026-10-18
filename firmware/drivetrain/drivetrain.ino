@@ -3,6 +3,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <RoboClaw.h>
+#include <EEPROM.h>
+
+// Saved current-sensor zeros (see CALIBRATION STORAGE below).
+struct ZeroCalibration {
+  uint32_t magic;
+  float zero_v[4];
+  uint32_t checksum;
+};
 
 #define LED_PIN 13
 #define RC_ADDRESS 0x80
@@ -23,8 +31,9 @@ RoboClaw roboclaw2(&Serial3, 10000);
 //
 // Raspberry Pi -> Teensy:
 //   DRIVE <left_wheel_rad_s> <right_wheel_rad_s>
-//   CAL_CURRENT
-//   CAL_ARM_CURRENT           (zero arm current sensors; loads disconnected)
+//   CAL_CURRENT               (zero drive current sensors; motors still; saved to EEPROM)
+//   CAL_ARM_CURRENT           (zero arm current sensors; loads disconnected; saved to EEPROM)
+//   CAL_SHOW                  (print the drive + arm zeros in use)
 //   STOP                      (stop all motors immediately)
 //
 // Teensy -> Raspberry Pi:
@@ -35,9 +44,9 @@ RoboClaw roboclaw2(&Serial3, 10000);
 //   ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>   (V)
 //   BATT <drivetrain_battery_V> <pi_arm_battery_V>                       (V)
 //   RC_CURR <back_left> <back_right> <front_right> <front_left>          (A, from RoboClaw)
-//   CAL_ARM_CURRENT START / CAL_ARM_CURRENT OK <z0> <z1> <z2> <z3>
-//   CAL_CURRENT START
-//   CAL_CURRENT OK
+//   CAL_CURRENT START / CAL_CURRENT OK SAVED <z0..z3> / CAL_CURRENT REJECTED ...
+//   CAL_ARM_CURRENT START / CAL_ARM_CURRENT OK SAVED <z0..z3> / ... REJECTED ...
+//   CAL_SHOW DRIVE <z0..z3> / CAL_SHOW ARM <z0..z3>
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
@@ -80,13 +89,23 @@ constexpr unsigned long TELEMETRY_INTERVAL_MS = 100;
 constexpr int NUM_CURRENT_CHANNELS = 4;
 const int CURRENT_SENSOR_PINS[NUM_CURRENT_CHANNELS] = {20, 21, 22, 23};
 
-// ACS712 30A sensor (UMLIFE kit, same as the arm sensors) + external 10k/20k
-// divider. (Original firmware assumed the 5A model, 0.185 V/A, which made
-// every drive current read ~2.8x too low.)
+// ACS712 sensitivity by chip marking (V/A at the sensor output):
+//   ELC-05B (5 A)  = 0.185     ELC-20A (20 A) = 0.100     ELC-30A (30 A) = 0.066
+// The 5 A chip saturates at +/-5 A.
+constexpr float ACS712_05A = 0.185f;
+constexpr float ACS712_20A = 0.100f;
+constexpr float ACS712_30A = 0.066f;
+
+// ACS712 on each drive motor lead + external 10k/20k divider.
 constexpr float ADC_VREF = 3.3f;
 constexpr float ADC_MAX = 1023.0f;             // 10-bit ADC
 constexpr float CURRENT_DIVIDER_RATIO = 1.5f; // reconstruct ACS712 output voltage
-constexpr float CURRENT_SENSITIVITY = 0.066f; // V/A for ACS712 30A model
+
+// Per channel, order: back left, back right, front right, front left.
+// All four read ELC-30A (chip markings checked 2026-10-18). Original firmware
+// assumed 5 A, which made every drive current read ~2.8x too low.
+const float CURRENT_SENSITIVITY[NUM_CURRENT_CHANNELS] = {
+  ACS712_30A, ACS712_30A, ACS712_30A, ACS712_30A};
 
 constexpr int CURRENT_OVERSAMPLE_COUNT = 128;
 // Light smoothing between 10 Hz samples (1.0 = none). Was 0.08 (~1.2 s lag),
@@ -131,7 +150,10 @@ const int ARM_CURRENT_PINS[NUM_ARM_CHANNELS] = {16, 18, 41, 39};
 const int ARM_VOLTAGE_PINS[NUM_ARM_CHANNELS] = {17, 19, 40, 38};
 
 constexpr float ARM_CURRENT_DIVIDER_RATIO = 1.5f;   // reconstruct ACS712 output voltage
-constexpr float ARM_CURRENT_SENSITIVITY = 0.066f;   // V/A for ACS712 30A model
+// Per channel (chip markings read 2026-10-18): drums 30 A, shoulders 5 A.
+// Order: rear drum, rear shoulder, front drum, front shoulder.
+const float ARM_CURRENT_SENSITIVITY[NUM_ARM_CHANNELS] = {
+  ACS712_30A, ACS712_05A, ACS712_30A, ACS712_05A};
 
 // ACS712 output at 0 A, in sensor-side volts (nominal = 5 V supply / 2).
 //   All channels use these stored values (no boot auto-zero; see
@@ -235,6 +257,90 @@ void flush_usb_rx() {
 }
 
 
+// -----------------------------------------------------------------------------
+// CALIBRATION STORAGE (Teensy EEPROM)
+//
+// CAL_CURRENT / CAL_ARM_CURRENT save their zeros to EEPROM, so calibration
+// survives reboots and power cycles without editing code or reflashing.
+// At boot, saved values replace the compiled defaults; if nothing valid is
+// saved, the compiled defaults are used.
+//
+// A calibration is REJECTED (nothing changed or saved) if any channel's zero
+// is outside CAL_ZERO_MIN_V..CAL_ZERO_MAX_V, e.g. 0 V from an unpowered sensor.
+// -----------------------------------------------------------------------------
+constexpr float CAL_ZERO_MIN_V = 2.2f;   // ACS712 0 A output, sensor side
+constexpr float CAL_ZERO_MAX_V = 2.8f;
+
+constexpr uint32_t CAL_MAGIC = 0x52435831;  // "RCX1"
+
+// (struct ZeroCalibration is defined at the top of the file so Arduino's
+// auto-generated prototypes can see it.)
+
+constexpr int EEPROM_ADDR_DRIVE_CAL = 0;
+constexpr int EEPROM_ADDR_ARM_CAL = 64;
+
+uint32_t cal_checksum(const ZeroCalibration &cal) {
+  uint32_t sum = cal.magic;
+  const uint8_t *bytes = reinterpret_cast<const uint8_t *>(cal.zero_v);
+  for (size_t i = 0; i < sizeof(cal.zero_v); ++i) {
+    sum = (sum * 31u) + bytes[i];
+  }
+  return sum;
+}
+
+void save_zero_calibration(int addr, const float zeros[4]) {
+  ZeroCalibration cal;
+  cal.magic = CAL_MAGIC;
+  for (int i = 0; i < 4; ++i) {
+    cal.zero_v[i] = zeros[i];
+  }
+  cal.checksum = cal_checksum(cal);
+  EEPROM.put(addr, cal);
+}
+
+// Returns true and fills zeros[] if a valid calibration is stored at addr.
+bool load_zero_calibration(int addr, float zeros[4]) {
+  ZeroCalibration cal;
+  EEPROM.get(addr, cal);
+
+  if (cal.magic != CAL_MAGIC || cal.checksum != cal_checksum(cal)) {
+    return false;
+  }
+  for (int i = 0; i < 4; ++i) {
+    if (!(cal.zero_v[i] >= CAL_ZERO_MIN_V && cal.zero_v[i] <= CAL_ZERO_MAX_V)) {
+      return false;
+    }
+  }
+  for (int i = 0; i < 4; ++i) {
+    zeros[i] = cal.zero_v[i];
+  }
+  return true;
+}
+
+bool zeros_plausible(const char *name, const float zeros[4]) {
+  for (int ch = 0; ch < 4; ++ch) {
+    if (!(zeros[ch] >= CAL_ZERO_MIN_V && zeros[ch] <= CAL_ZERO_MAX_V)) {
+      Serial.print(name);
+      Serial.print(" REJECTED channel ");
+      Serial.print(ch);
+      Serial.print(" zero ");
+      Serial.print(zeros[ch], 4);
+      Serial.println(" V (sensor unpowered or current flowing?) -- nothing saved");
+      return false;
+    }
+  }
+  return true;
+}
+
+void print_zeros(const char *prefix, const float zeros[4]) {
+  Serial.print(prefix);
+  for (int ch = 0; ch < 4; ++ch) {
+    Serial.print(zeros[ch], 4);
+    Serial.print(ch < 3 ? ' ' : '\n');
+  }
+}
+
+
 void calibrate_current_sensors() {
   // Calibration must happen at zero motor current.
   stop_all_motors();
@@ -245,6 +351,8 @@ void calibrate_current_sensors() {
 
   // Let motor commands settle before measuring the zero-current baselines.
   delay(100);
+
+  float measured[NUM_CURRENT_CHANNELS];
 
   for (int ch = 0; ch < NUM_CURRENT_CHANNELS; ++ch) {
     uint32_t adc_sum = 0;
@@ -260,11 +368,7 @@ void calibrate_current_sensors() {
     const float pin_voltage =
       (avg_adc / ADC_MAX) * ADC_VREF;
 
-    current_zero_offsets[ch] =
-      pin_voltage * CURRENT_DIVIDER_RATIO;
-
-    // Start the EMA at the measured zero-current pin voltage.
-    current_smoothed_pin_voltages[ch] = pin_voltage;
+    measured[ch] = pin_voltage * CURRENT_DIVIDER_RATIO;
   }
 
   // If the Pi was already streaming DRIVE commands during the blocking
@@ -272,12 +376,17 @@ void calibrate_current_sensors() {
   // after calibration will be processed normally.
   flush_usb_rx();
 
-  // Print the zeros so they can be pasted into current_zero_offsets.
-  Serial.print("CAL_CURRENT OK ");
-  for (int ch = 0; ch < NUM_CURRENT_CHANNELS; ++ch) {
-    Serial.print(current_zero_offsets[ch], 4);
-    Serial.print(ch < NUM_CURRENT_CHANNELS - 1 ? ' ' : '\n');
+  if (!zeros_plausible("CAL_CURRENT", measured)) {
+    return;
   }
+
+  for (int ch = 0; ch < NUM_CURRENT_CHANNELS; ++ch) {
+    current_zero_offsets[ch] = measured[ch];
+    current_smoothed_pin_voltages[ch] = measured[ch] / CURRENT_DIVIDER_RATIO;
+  }
+  save_zero_calibration(EEPROM_ADDR_DRIVE_CAL, current_zero_offsets);
+
+  print_zeros("CAL_CURRENT OK SAVED ", current_zero_offsets);
 }
 
 
@@ -302,7 +411,7 @@ void read_currents(float currents[NUM_CURRENT_CHANNELS]) {
 
     currents[ch] =
       (sensor_voltage - current_zero_offsets[ch]) /
-      CURRENT_SENSITIVITY;
+      CURRENT_SENSITIVITY[ch];
   }
 }
 
@@ -350,7 +459,7 @@ void auto_zero_arm_drum_currents() {
 
 // Manual: zero ALL four channels. Only valid with NO current through the
 // sensors (driver supply leads unplugged downstream of the sensors).
-// Prints the values to paste into arm_current_zero_v.
+// Saves to EEPROM; rejected if any channel looks unpowered.
 void calibrate_arm_current_sensors() {
   stop_all_motors();
   have_command = false;
@@ -358,18 +467,24 @@ void calibrate_arm_current_sensors() {
 
   Serial.println("CAL_ARM_CURRENT START");
 
+  float measured[NUM_ARM_CHANNELS];
   for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
-    arm_current_zero_v[ch] = measure_arm_current_zero(ch);
+    measured[ch] = measure_arm_current_zero(ch);
   }
 
-  arm_sensors_initialized = false;  // Restart smoothing from fresh readings
   flush_usb_rx();
 
-  Serial.print("CAL_ARM_CURRENT OK ");
-  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
-    Serial.print(arm_current_zero_v[ch], 4);
-    Serial.print(ch < NUM_ARM_CHANNELS - 1 ? ' ' : '\n');
+  if (!zeros_plausible("CAL_ARM_CURRENT", measured)) {
+    return;
   }
+
+  for (int ch = 0; ch < NUM_ARM_CHANNELS; ++ch) {
+    arm_current_zero_v[ch] = measured[ch];
+  }
+  arm_sensors_initialized = false;  // Restart smoothing from fresh readings
+  save_zero_calibration(EEPROM_ADDR_ARM_CAL, arm_current_zero_v);
+
+  print_zeros("CAL_ARM_CURRENT OK SAVED ", arm_current_zero_v);
 }
 
 
@@ -381,7 +496,7 @@ void read_and_send_arm_sensors() {
     const float sensor_v =
       read_pin_voltage(ARM_CURRENT_PINS[ch], ARM_OVERSAMPLE_COUNT) *
       ARM_CURRENT_DIVIDER_RATIO;
-    currents[ch] = (sensor_v - arm_current_zero_v[ch]) / ARM_CURRENT_SENSITIVITY;
+    currents[ch] = (sensor_v - arm_current_zero_v[ch]) / ARM_CURRENT_SENSITIVITY[ch];
 
     voltages[ch] =
       read_pin_voltage(ARM_VOLTAGE_PINS[ch], ARM_OVERSAMPLE_COUNT) *
@@ -459,6 +574,12 @@ void handle_command(char *line) {
 
   if (strcmp(line, "CAL_ARM_CURRENT") == 0) {
     calibrate_arm_current_sensors();
+    return;
+  }
+
+  if (strcmp(line, "CAL_SHOW") == 0) {
+    print_zeros("CAL_SHOW DRIVE ", current_zero_offsets);
+    print_zeros("CAL_SHOW ARM ", arm_current_zero_v);
     return;
   }
 
@@ -632,6 +753,23 @@ void setup() {
   roboclaw2.begin(38400);
 
   stop_all_motors();
+
+  // Saved calibrations (from CAL_CURRENT / CAL_ARM_CURRENT) override the
+  // compiled defaults.
+  if (load_zero_calibration(EEPROM_ADDR_DRIVE_CAL, current_zero_offsets)) {
+    for (int ch = 0; ch < NUM_CURRENT_CHANNELS; ++ch) {
+      current_smoothed_pin_voltages[ch] = current_zero_offsets[ch] / CURRENT_DIVIDER_RATIO;
+    }
+    print_zeros("# CAL drive zeros loaded from EEPROM: ", current_zero_offsets);
+  } else {
+    print_zeros("# CAL drive zeros: compiled defaults (none saved): ", current_zero_offsets);
+  }
+
+  if (load_zero_calibration(EEPROM_ADDR_ARM_CAL, arm_current_zero_v)) {
+    print_zeros("# CAL arm zeros loaded from EEPROM: ", arm_current_zero_v);
+  } else {
+    print_zeros("# CAL arm zeros: compiled defaults (none saved): ", arm_current_zero_v);
+  }
 
   if (AUTO_CALIBRATE_CURRENT_AT_BOOT) {
     calibrate_current_sensors();

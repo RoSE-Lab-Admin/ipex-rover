@@ -10,21 +10,22 @@ Drives both RoboClaws (velocity PID speed commands) and reads all power sensors:
 |---|---|---|
 | Pi → Teensy | `DRIVE <left_rad_s> <right_rad_s>` | Side wheel velocities (stops after 500 ms without a new one) |
 | Pi → Teensy | `STOP` | Stop all drive motors |
-| Pi → Teensy | `CAL_CURRENT` | Zero the drive current sensors (sensors powered, motors still); prints zeros to paste into `current_zero_offsets` |
-| Pi → Teensy | `CAL_ARM_CURRENT` | Zero the arm current sensors (**arm driver supply leads disconnected**) |
+| Pi → Teensy | `CAL_CURRENT` | Zero the drive current sensors (sensors powered, motors still); **saved to EEPROM** |
+| Pi → Teensy | `CAL_ARM_CURRENT` | Zero the arm current sensors (**arm driver supply leads disconnected**); **saved to EEPROM** |
+| Pi → Teensy | `CAL_SHOW` | Print the drive and arm zeros currently in use |
 | Teensy → Pi | `VOLT <bl> <br> <fr> <fl>` | Drive motor voltage estimate (RoboClaw battery V × PWM duty) |
 | Teensy → Pi | `CURR <bl> <br> <fr> <fl>` | Drive motor currents (A); ACS712 30A, stored zeros, no boot calibration |
 | Teensy → Pi | `ARM_CURR <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply currents (A), 10 Hz |
 | Teensy → Pi | `ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply voltages (V), 10 Hz |
 | Teensy → Pi | `BATT <drivetrain_V> <pi_arm_V>` | Battery voltages (V), 10 Hz |
 | Teensy → Pi | `RC_CURR <bl> <br> <fr> <fl>` | Motor currents measured by the RoboClaws (A, signed; `nan` if no reply), 10 Hz |
-| Teensy → Pi | `CAL_CURRENT START` / `CAL_CURRENT OK <z0> <z1> <z2> <z3>` | Drive current zeros (sensor-side volts, order bl br fr fl) |
-| Teensy → Pi | `CAL_ARM_CURRENT START` / `CAL_ARM_CURRENT OK <z0> <z1> <z2> <z3>` | Arm current zeros (sensor-side volts) to paste into `arm_current_zero_v` |
+| Teensy → Pi | `CAL_CURRENT OK SAVED <z0..z3>` / `CAL_CURRENT REJECTED ...` | Drive zeros saved (sensor-side volts, bl br fr fl), or rejected because a channel looked unpowered (outside 2.2-2.8 V) |
+| Teensy → Pi | `CAL_ARM_CURRENT OK SAVED <z0..z3>` / `... REJECTED ...` | Arm zeros saved, or rejected |
 | Teensy → Pi | `STOPPED` | STOP complete |
 
 ## Arm power sensors
 
-UMLIFE kit: ACS712 30A current module (0.066 V/A) + DC 0-25V voltage module (5:1 divider).
+Current sensors (ACS712, per chip marking): **drums 30 A (0.066 V/A), shoulders 5 A (0.185 V/A, saturates at 5 A)**. Voltage: DC 0-25V module (5:1) + 5 V to 3.3 V divider. Drive motor sensors (pins 20-23): **all 30 A** (verified 2026-10-18).
 
 | Pin | Signal | ROS topic |
 |---|---|---|
@@ -50,4 +51,9 @@ Same 0-25V module + divider as the arm voltage channels, inline on each battery.
 
 Ratio starts at 11.8; trim each channel against a multimeter (`BATTERY_VOLTAGE_DIVIDER_RATIO`).
 
-Zero-current offsets are stored constants (manual calibration 2026-10-15); there is no boot auto-zero for the arm channels. To redo them, disconnect each arm driver supply lead downstream of its sensor, send `CAL_ARM_CURRENT`, and paste the printed values into `arm_current_zero_v`.
+## Current-sensor calibration
+
+Zeros are saved in the Teensy EEPROM by `CAL_CURRENT` / `CAL_ARM_CURRENT` and loaded at every boot (no reflash needed). If nothing is saved, compiled defaults are used (arm: 2026-10-15 manual values; drive: nominal 2.5 V). There is **no boot auto-zero**. A calibration is rejected if any channel reads outside 2.2-2.8 V (sensor unpowered or current flowing). `CAL_SHOW` prints what is in use.
+
+- Drive: sensors powered, wheels still, send `CAL_CURRENT`.
+- Arms: disconnect each arm driver supply lead downstream of its sensor, send `CAL_ARM_CURRENT`.
