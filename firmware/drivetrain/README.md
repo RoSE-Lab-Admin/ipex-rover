@@ -38,7 +38,7 @@ Current sensors (ACS712, per chip marking): **drums 30 A (0.066 V/A), shoulders 
 | 40 | Front drum voltage | `/rover/front_arm/drum/voltage` |
 | 41 | Front drum current | `/rover/front_arm/drum/current` |
 
-**Teensy analog pins are 3.3 V max.** Every module output goes through a 5 V to 3.3 V divider (ratio 1.5). Voltage channels: bench-measured total ratio **11.8:1** (not the 7.5 the nominal values suggest; module and divider load each other). A full 7S pack (29.4 V) gives ~2.5 V at the pin; full scale ~38.9 V. Trim each channel against a multimeter (`ARM_VOLTAGE_DIVIDER_RATIO`).
+**Teensy analog pins are 3.3 V max.** Every module output goes through a 5 V to 3.3 V divider (ratio 1.5). Voltage channels: measured ratio on the rover **9.10:1** (27.77 V in, 3.05 V at the pin). A full 7S pack (29.4 V) gives ~3.23 V at the pin (just under 3.3 V); readings clip at ~30 V. A 15k bottom resistor (instead of 20k) would give ~10.3:1 and more margin.
 
 ## Battery voltage sensors
 
@@ -49,7 +49,7 @@ Same 0-25V module + divider as the arm voltage channels, inline on each battery.
 | 24 | Drivetrain battery voltage | `/rover/drive_battery/voltage` |
 | 25 | Pi / arm battery voltage | `/rover/arm_battery/voltage` |
 
-Ratio starts at 11.8; trim each channel against a multimeter (`BATTERY_VOLTAGE_DIVIDER_RATIO`).
+Ratio set to 9.10 (same sensor + divider as the arm channels); verify against a multimeter once wired (`BATTERY_VOLTAGE_DIVIDER_RATIO`).
 
 ## Current-sensor calibration
 

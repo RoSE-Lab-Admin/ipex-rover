@@ -138,9 +138,10 @@ float current_smoothed_pin_voltages[NUM_CURRENT_CHANNELS] = {
 // output goes through a 5 V -> 3.3 V divider (ratio 1.5):
 //   - Current: ACS712 output / 1.5 -> ARM_CURRENT_DIVIDER_RATIO = 1.5.
 //   - Voltage: 0-25V module (passive divider, no output cap) then the
-//     5 V -> 3.3 V divider. Bench-measured total ratio = 11.8:1
-//     (27.5 V -> 2.33 V), so a full 7S pack (29.4 V) -> ~2.5 V at the pin.
-//     Full scale at 3.3 V = ~38.9 V.
+//     5 V -> 3.3 V divider. Measured total ratio on the rover = 9.10:1
+//     (27.77 V -> 3.05 V). Full 7S pack (29.4 V) -> 3.23 V at the pin;
+//     full scale at 3.3 V = ~30 V. Little margin: a 15k bottom resistor
+//     (instead of 20k) would give ~10.3:1.
 // -----------------------------------------------------------------------------
 constexpr int NUM_ARM_CHANNELS = 4;
 // Wiring: rear arm on 16-19, front arm on 38-41.
@@ -171,9 +172,10 @@ float arm_current_zero_v[NUM_ARM_CHANNELS] = {2.4487f, 2.6483f, 2.4474f, 2.4952f
 constexpr bool AUTO_ZERO_ARM_DRUMS_AT_BOOT = false;
 const bool ARM_CHANNEL_IS_DRUM[NUM_ARM_CHANNELS] = {true, false, true, false};
 
-// Measured volts per pin volt. 11.8 from the bench test (Uno ADC); trim each
-// channel on the Teensy against a multimeter: new = old * (meter / reading).
-const float ARM_VOLTAGE_DIVIDER_RATIO[NUM_ARM_CHANNELS] = {11.8f, 11.8f, 11.8f, 11.8f};
+// Measured volts per pin volt, on the Teensy (2026-10-18): 27.77 V in,
+// 3.05 V at every arm voltage pin -> 9.10. Matches the circuit (module
+// 30k/7.5k loaded by 10k/20k = 9.0). Full 7S pack (29.4 V) -> 3.23 V at pin.
+const float ARM_VOLTAGE_DIVIDER_RATIO[NUM_ARM_CHANNELS] = {9.10f, 9.10f, 9.10f, 9.10f};
 
 constexpr int ARM_OVERSAMPLE_COUNT = 64;
 // Light smoothing between 10 Hz samples (1.0 = none). Kept low so power
@@ -192,9 +194,9 @@ bool arm_sensors_initialized = false;
 constexpr int NUM_BATTERY_CHANNELS = 2;
 const int BATTERY_VOLTAGE_PINS[NUM_BATTERY_CHANNELS] = {24, 25};
 
-// Measured volts per pin volt. Start at the bench ratio; trim each channel
-// against a multimeter: new = old * (meter / reading).
-const float BATTERY_VOLTAGE_DIVIDER_RATIO[NUM_BATTERY_CHANNELS] = {11.8f, 11.8f};
+// Measured volts per pin volt. Same sensor + divider as the arm voltage
+// channels (9.10 measured there); VERIFY with a multimeter once wired.
+const float BATTERY_VOLTAGE_DIVIDER_RATIO[NUM_BATTERY_CHANNELS] = {9.10f, 9.10f};
 
 float battery_voltage_smoothed[NUM_BATTERY_CHANNELS] = {0.0f, 0.0f};
 bool battery_sensors_initialized = false;
