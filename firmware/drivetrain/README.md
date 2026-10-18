@@ -10,15 +10,15 @@ Drives both RoboClaws (velocity PID speed commands) and reads all power sensors:
 |---|---|---|
 | Pi → Teensy | `DRIVE <left_rad_s> <right_rad_s>` | Side wheel velocities (stops after 500 ms without a new one) |
 | Pi → Teensy | `STOP` | Stop all drive motors |
-| Pi → Teensy | `CAL_CURRENT` | Zero the drive current sensors (also runs at boot) |
+| Pi → Teensy | `CAL_CURRENT` | Zero the drive current sensors (sensors powered, motors still); prints zeros to paste into `current_zero_offsets` |
 | Pi → Teensy | `CAL_ARM_CURRENT` | Zero the arm current sensors (**arm driver supply leads disconnected**) |
 | Teensy → Pi | `VOLT <bl> <br> <fr> <fl>` | Drive motor voltage estimate (RoboClaw battery V × PWM duty) |
-| Teensy → Pi | `CURR <bl> <br> <fr> <fl>` | Drive motor currents (A) |
+| Teensy → Pi | `CURR <bl> <br> <fr> <fl>` | Drive motor currents (A); ACS712 30A, stored zeros, no boot calibration |
 | Teensy → Pi | `ARM_CURR <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply currents (A), 10 Hz |
 | Teensy → Pi | `ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply voltages (V), 10 Hz |
 | Teensy → Pi | `BATT <drivetrain_V> <pi_arm_V>` | Battery voltages (V), 10 Hz |
 | Teensy → Pi | `RC_CURR <bl> <br> <fr> <fl>` | Motor currents measured by the RoboClaws (A, signed; `nan` if no reply), 10 Hz |
-| Teensy → Pi | `CAL_CURRENT START` / `CAL_CURRENT OK` | Drive current calibration status |
+| Teensy → Pi | `CAL_CURRENT START` / `CAL_CURRENT OK <z0> <z1> <z2> <z3>` | Drive current zeros (sensor-side volts, order bl br fr fl) |
 | Teensy → Pi | `CAL_ARM_CURRENT START` / `CAL_ARM_CURRENT OK <z0> <z1> <z2> <z3>` | Arm current zeros (sensor-side volts) to paste into `arm_current_zero_v` |
 | Teensy → Pi | `STOPPED` | STOP complete |
 

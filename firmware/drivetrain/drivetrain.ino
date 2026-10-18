@@ -80,23 +80,33 @@ constexpr unsigned long TELEMETRY_INTERVAL_MS = 100;
 constexpr int NUM_CURRENT_CHANNELS = 4;
 const int CURRENT_SENSOR_PINS[NUM_CURRENT_CHANNELS] = {20, 21, 22, 23};
 
-// ACS712 5A sensor + external 10k/20k divider used by the EE test sketch.
+// ACS712 30A sensor (UMLIFE kit, same as the arm sensors) + external 10k/20k
+// divider. (Original firmware assumed the 5A model, 0.185 V/A, which made
+// every drive current read ~2.8x too low.)
 constexpr float ADC_VREF = 3.3f;
 constexpr float ADC_MAX = 1023.0f;             // 10-bit ADC
 constexpr float CURRENT_DIVIDER_RATIO = 1.5f; // reconstruct ACS712 output voltage
-constexpr float CURRENT_SENSITIVITY = 0.185f; // V/A for ACS712 5A model
+constexpr float CURRENT_SENSITIVITY = 0.066f; // V/A for ACS712 30A model
 
 constexpr int CURRENT_OVERSAMPLE_COUNT = 128;
-constexpr float CURRENT_ALPHA = 0.08f;
+// Light smoothing between 10 Hz samples (1.0 = none). Was 0.08 (~1.2 s lag),
+// which hid stall spikes.
+constexpr float CURRENT_ALPHA = 0.5f;
 constexpr int CURRENT_CALIBRATION_SAMPLES = 500;
 
-// For now we calibrate once during Teensy startup while motors are stopped.
-// Later the ROS startup/calibration primitive can explicitly issue CAL_CURRENT.
-// Set false later if startup calibration becomes fully owned by ROS.
-constexpr bool AUTO_CALIBRATE_CURRENT_AT_BOOT = true;
+// Off: drive channels use the stored zeros below. A boot-time zero is wrong
+// whenever the sensors' 5 V is not on yet when the Teensy boots.
+constexpr bool AUTO_CALIBRATE_CURRENT_AT_BOOT = false;
 
-float current_zero_offsets[NUM_CURRENT_CHANNELS] = {0.0f, 0.0f, 0.0f, 0.0f};
-float current_smoothed_pin_voltages[NUM_CURRENT_CHANNELS] = {0.0f, 0.0f, 0.0f, 0.0f};
+// ACS712 output at 0 A, in sensor-side volts (nominal = 5 V supply / 2).
+// Order: back left, back right, front right, front left (pins 20-23).
+// To set: sensors powered, drive motors still, send CAL_CURRENT, paste the
+// printed values here, reflash.
+float current_zero_offsets[NUM_CURRENT_CHANNELS] = {2.5f, 2.5f, 2.5f, 2.5f};
+
+// EMA state (pin volts), started at the nominal zero so readings settle at once.
+float current_smoothed_pin_voltages[NUM_CURRENT_CHANNELS] = {
+  2.5f / 1.5f, 2.5f / 1.5f, 2.5f / 1.5f, 2.5f / 1.5f};
 
 // -----------------------------------------------------------------------------
 // ARM POWER SENSORS (current + voltage on each arm's driver supply)
@@ -262,7 +272,12 @@ void calibrate_current_sensors() {
   // after calibration will be processed normally.
   flush_usb_rx();
 
-  Serial.println("CAL_CURRENT OK");
+  // Print the zeros so they can be pasted into current_zero_offsets.
+  Serial.print("CAL_CURRENT OK ");
+  for (int ch = 0; ch < NUM_CURRENT_CHANNELS; ++ch) {
+    Serial.print(current_zero_offsets[ch], 4);
+    Serial.print(ch < NUM_CURRENT_CHANNELS - 1 ? ' ' : '\n');
+  }
 }
 
 
