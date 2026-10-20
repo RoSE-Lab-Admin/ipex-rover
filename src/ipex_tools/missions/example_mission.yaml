@@ -50,7 +50,7 @@ steps:
   - primitive: excavate
     tag: dig
     params:
-      arm: front
+      arm: both
       dig_angle_deg: -10                          # shoulder angle while digging
       drum_steps_s: 2000                          # drum speed (or omega_drum_rad_s)
       speed_mps: 0.05                             # crawl speed while digging
@@ -59,7 +59,7 @@ steps:
   - primitive: deposit
     tag: dump
     params:
-      arm: front
+      arm: both
       dump_angle_deg: 45                          # 45 = top / home
       drum_steps_s: 2000
       duration_s: 5
