@@ -1,0 +1,7 @@
+name: idle_baseline
+description: >
+  Measure idle power: everything powered, nothing moving, for 60 s.
+  Run with --record to keep the raw data.
+on_failure: stop
+steps:
+  - idle: {t_wait_s: 60}

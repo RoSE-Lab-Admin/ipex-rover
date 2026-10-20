@@ -1,0 +1,70 @@
+# ============================================================================
+# Roxey example mission: shows every mission-file feature.
+#
+#   roxey mission example_mission --check      validate only (nothing moves)
+#   roxey mission example_mission --record     run it and record a bag
+#   roxey mission path/to/my_copy.yaml         run your own copy
+#
+# Before running: arms homed (A on the controller, or `roxey home`), about
+# 2 x 2 m of clear floor, and someone near the controller (B = all stop).
+# ============================================================================
+
+name: example_mission              # used for the report folder (default: file name)
+description: >
+  Template mission: arm motion, driving, turning, a short dig and a dump,
+  with an idle baseline at the start for energy comparison.
+
+record: false                      # true = record a bag for the whole mission
+                                   # (same as passing --record)
+on_failure: stop                   # stop:     end the mission at the first failure
+                                   # continue: log the failure and run the next step
+
+steps:
+  # --- Short form:  - <primitive>: {<param>: <value>, ...}
+  # Angles may be given in degrees (*_deg) or radians (*_rad).
+
+  - idle: {t_wait_s: 10}                          # idle power baseline (E above idle uses it)
+
+  - set_arm: {arm: front, theta_deg: 0}           # arm: front | rear | both
+
+  # --- Long form: adds a tag (shown in reports and the run log).
+  - primitive: drive_straight
+    tag: approach
+    params:
+      distance_m: 0.5                             # negative = backward
+      speed_mps: 0.2
+
+  - primitive: point_turn
+    tag: turn_left
+    params:
+      dpsi_deg: 90                                # + = left (counter-clockwise)
+      omega_deg_s: 20                             # turn rate
+
+  - primitive: arc_turn
+    tag: arc_back
+    params:
+      r_arc_m: 1.0                                # turning radius
+      speed_mps: 0.15
+      dpsi_deg: -90                               # - = right
+
+  - primitive: excavate
+    tag: dig
+    params:
+      arm: front
+      dig_angle_deg: -10                          # shoulder angle while digging
+      drum_steps_s: 2000                          # drum speed (or omega_drum_rad_s)
+      speed_mps: 0.05                             # crawl speed while digging
+      duration_s: 5
+
+  - primitive: deposit
+    tag: dump
+    params:
+      arm: front
+      dump_angle_deg: 45                          # 45 = top / home
+      drum_steps_s: 2000
+      duration_s: 5
+
+  - set_arm: {arm: front, theta_deg: 45}          # park the arm at home
+
+# Not capable on this rover yet (would fail validation): scan_terrain, recharge.
+# Full primitive list and parameters: `roxey prims` and `roxey prims <name>`.

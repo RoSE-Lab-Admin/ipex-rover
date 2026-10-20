@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,6 +46,9 @@ namespace ipex_hardware
 //       -> "JOG STOP". While jogging, "JOG UP|DOWN" keepalives are sent to
 //       the Teensy every jog_keepalive_ms (Teensy stops after 250 ms without).
 //   /ipex/<arm_name>/step     (std_msgs/Float64, sub) relative degrees -> "STEP <deg>"
+//   /ipex/<arm_name>/goto     (std_msgs/Float64, sub) absolute degrees -> "ARM <deg>"
+//       Always sent (unlike the position controller path, which only sends
+//       when the target changes). Used by motion primitives.
 class IpexArmSystem : public hardware_interface::SystemInterface
 {
 public:
@@ -109,10 +113,14 @@ private:
   // Taps: accumulated relative degrees not yet sent.
   std::atomic<double> pending_step_deg_{0.0};
 
+  // Absolute target requested on /goto (degrees); NaN = none pending.
+  std::atomic<double> pending_goto_deg_{std::numeric_limits<double>::quiet_NaN()};
+
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr all_stop_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr home_sub_;
   rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr jog_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr step_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr goto_sub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr homed_pub_;
 };
 

@@ -1,0 +1,30 @@
+# ipex_primitives/primitive_server
+primitive_server:
+  ros__parameters:
+    # Arms (must match firmware/arm/arm.ino ARM_MIN_DEG / ARM_MAX_DEG)
+    arm_min_deg: -40.0
+    arm_max_deg: 45.0
+    arm_speed_deg_s: 5.6          # fixed firmware step rate; used for timeouts
+    arm_tolerance_deg: 0.5        # "reached" when within this of the target
+    arm_timeout_margin_s: 5.0     # added to travel time (brake release/engage, settle)
+
+    # Drive
+    max_speed_mps: 1.0            # primitives never command faster than this
+    max_turn_rad_s: 1.0
+    drive_timeout_factor: 1.5     # timeout = expected time x factor + margin
+    drive_timeout_margin_s: 3.0
+    stall_current_a: 6.5          # RoboClaw-measured current (limit is 7 A)
+    stall_time_s: 1.0             # at/above stall current this long -> STALL
+
+    # Drums: primitive omega > 0 means "dig" (= hand controller D-pad left)
+    drum_dig_sign_front: -1.0
+    drum_dig_sign_rear: 1.0
+    drum_max_rad_s: 47.12         # 3000 drum steps/s
+    drum_spinup_s: 1.0
+
+    # Energy
+    idle_window_s: 2.0            # idle power = average power over this window before start
+    energy_settle_s: 0.3
+
+    # Run log: <data_dir>/runs/primitive_runs.csv
+    data_dir: '~/roxey_data'

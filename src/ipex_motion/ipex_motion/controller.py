@@ -82,7 +82,12 @@ class Controller(Node):
         self.joy_sub = self.create_subscription(
             Joy, '/joy', self.joy_callback, 10)
 
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        # Drive goes through cmd_mux (all stop > teleop > primitive > zero).
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel/teleop', 10)
+
+        # Operator input while a primitive runs cancels it (primitive server).
+        self.override_pub = self.create_publisher(Empty, '/ipex/teleop_override', 10)
+        self.last_override_s = -1e9
 
         # ALL STOP -> every Teensy (drivetrain + arms) receives STOP.
         self.all_stop_pub = self.create_publisher(Empty, '/ipex/all_stop', 10)
@@ -185,10 +190,31 @@ class Controller(Node):
             self.home_pub.publish(Empty())
             self.get_logger().warn('HOME: calibrating arms (arms will move).')
 
+        self.signal_override_if_active(msg)
+
         self.handle_speed_bounds(msg)
         self.handle_drums(msg)
         self.handle_arms(msg)
         self.handle_drive(msg)
+
+    def signal_override_if_active(self, msg):
+        """Publish /ipex/teleop_override (max 2 Hz) while the operator is
+        driving, moving an arm, or changing drum speed. A running motion
+        primitive treats this as a cancel (OPERATOR_OVERRIDE)."""
+        threshold = self.p['trigger_pressed_threshold']
+        active = (
+            abs(self.axis(msg, self.p['left_y_axis'])) > 0.15 or
+            abs(self.axis(msg, self.p['right_y_axis'])) > 0.15 or
+            abs(self.axis(msg, self.p['dpad_x_axis'])) > 0.5 or
+            self.button(msg, self.p['left_bumper_button']) or
+            self.button(msg, self.p['right_bumper_button']) or
+            self.axis(msg, self.p['left_trigger_axis']) < threshold or
+            self.axis(msg, self.p['right_trigger_axis']) < threshold
+        )
+        now = self.now_s()
+        if active and now - self.last_override_s >= 0.5:
+            self.override_pub.publish(Empty())
+            self.last_override_s = now
 
     # -----------------------------------------------------
     # All stop

@@ -86,6 +86,29 @@ def generate_launch_description():
         respawn_delay=5.0,
     )
 
+    # Drive command mux: all stop > teleop > primitive > zero -> /cmd_vel.
+    cmd_mux = Node(
+        package='ipex_motion',
+        executable='cmd_mux',
+        name='cmd_mux',
+        output='screen',
+    )
+
+    # Motion primitives behind one action (/ipex/primitive), with t and E.
+    primitive_server = Node(
+        package='ipex_primitives',
+        executable='primitive_server',
+        name='primitive_server',
+        parameters=[
+            PathJoinSubstitution([
+                FindPackageShare('ipex_bringup'),
+                'config',
+                'primitives.yaml',
+            ])
+        ],
+        output='screen',
+    )
+
     # Power + cumulative energy for every measured channel -> /ipex/energy.
     energy_meter = Node(
         package='ipex_energy',
@@ -116,5 +139,7 @@ def generate_launch_description():
         controller,
         temperature_node,
         energy_meter,
+        cmd_mux,
+        primitive_server,
         joy,
     ])

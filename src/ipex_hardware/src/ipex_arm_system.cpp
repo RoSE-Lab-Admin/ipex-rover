@@ -170,6 +170,14 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
       }
     });
 
+  goto_sub_ = node->create_subscription<std_msgs::msg::Float64>(
+    "/ipex/" + arm_name_ + "/goto", 10,
+    [this](const std_msgs::msg::Float64 & msg) {
+      if (std::isfinite(msg.data)) {
+        pending_goto_deg_ = msg.data;
+      }
+    });
+
   RCLCPP_INFO(get_logger(), "Arm '%s' configured on %s.", arm_name_.c_str(),
     serial_device_.c_str());
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -211,6 +219,7 @@ hardware_interface::CallbackReturn IpexArmSystem::on_cleanup(
   home_sub_.reset();
   jog_sub_.reset();
   step_sub_.reset();
+  goto_sub_.reset();
   homed_pub_.reset();
   port_.reset();
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -320,6 +329,7 @@ hardware_interface::return_type IpexArmSystem::write(
     jog_sent_dir_ = 0;
     jog_blocked_ = true;
     pending_step_deg_ = 0.0;
+    pending_goto_deg_ = std::numeric_limits<double>::quiet_NaN();
     return hardware_interface::return_type::OK;
   }
 
@@ -358,6 +368,18 @@ hardware_interface::return_type IpexArmSystem::write(
       }
       jog_sent_dir_ = desired;
       last_jog_sent_ = now;
+    }
+  }
+
+  // Absolute goto (primitives): always sent, even if the angle is unchanged.
+  const double goto_deg = pending_goto_deg_.exchange(std::numeric_limits<double>::quiet_NaN());
+  if (std::isfinite(goto_deg)) {
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "ARM %.2f", goto_deg);
+    if (!port_->write_line(buf)) {
+      RCLCPP_ERROR(get_logger(), "Arm '%s': failed to send %s: %s",
+        arm_name_.c_str(), buf, port_->last_error().c_str());
+      return hardware_interface::return_type::ERROR;
     }
   }
 

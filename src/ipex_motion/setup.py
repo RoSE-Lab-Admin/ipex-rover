@@ -38,6 +38,7 @@ setup(
 		'deposit_server = ipex_motion.deposit_server:main',
 		'cmd_vel_bridge = ipex_motion.cmd_vel_bridge:main',
 		'controller = ipex_motion.controller:main',
+		'cmd_mux = ipex_motion.cmd_mux:main',
         ],
     },
 )

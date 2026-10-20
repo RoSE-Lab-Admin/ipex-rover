@@ -1,0 +1,16 @@
+name: dig_cycle
+description: >
+  Excavate with the front arm while crawling forward, back up, then dump.
+  Requires the front arm to be homed. Clear 1 m in front of and behind the rover.
+record: false
+on_failure: stop
+steps:
+  - primitive: excavate
+    tag: dig
+    params: {arm: front, dig_angle_deg: -10, drum_steps_s: 2000, speed_mps: 0.05, duration_s: 10}
+  - primitive: drive_straight
+    tag: back_up
+    params: {distance_m: -0.5, speed_mps: 0.15}
+  - primitive: deposit
+    tag: dump
+    params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 10}

@@ -1,0 +1,9 @@
+name: arm_check
+description: >
+  Front arm down to 0 deg, hold 5 s, back up to 45 deg (home).
+  Requires the front arm to be homed (A on the controller, or `roxey home`).
+on_failure: stop
+steps:
+  - set_arm: {arm: front, theta_deg: 0}
+  - idle: {t_wait_s: 5}
+  - set_arm: {arm: front, theta_deg: 45}

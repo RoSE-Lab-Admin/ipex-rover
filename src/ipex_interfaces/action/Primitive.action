@@ -1,0 +1,33 @@
+# Run one Roxey motion primitive (served by ipex_primitives/primitive_server
+# on the action name /ipex/primitive).
+#
+# Every primitive returns the same result fields, so time and energy can be
+# compared across primitives and summed across missions.
+# Primitive names, parameters, units and failure codes:
+# src/ipex_primitives/README.md (or `roxey prims`).
+
+# ---------------------------------------------------------------- goal
+string name                 # e.g. "set_arm", "drive_straight"
+string params_yaml          # parameters as a YAML mapping, e.g. "{arm: front, angle_deg: -10}"
+string tag                  # optional free text stored in the run log (mission/step id)
+---
+# ---------------------------------------------------------------- result
+bool success
+string failure_code         # "" on success; codes listed in src/ipex_primitives/README.md
+string message              # human-readable outcome
+
+float64 duration_s          # t: time from start to finish
+float64 energy_j            # E: total measured energy drawn during the primitive
+float64 energy_above_idle_j # E minus (idle power measured just before start x t)
+float64 idle_power_w        # idle power used for the above
+
+string[] groups             # energy breakdown: drive, rear_arm, front_arm
+float64[] group_energy_j
+
+string outputs_yaml         # primitive-specific results, e.g. "{final_angle_deg: -9.8}"
+---
+# ---------------------------------------------------------------- feedback
+float64 elapsed_s
+float64 energy_j            # energy so far
+float64 progress            # 0..1, or -1 if unknown
+string status               # short human-readable state

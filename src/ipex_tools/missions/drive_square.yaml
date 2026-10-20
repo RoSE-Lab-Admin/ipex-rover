@@ -1,0 +1,14 @@
+name: drive_square
+description: >
+  Drive a 1 m square with point turns. Needs about 1.5 x 1.5 m of clear floor.
+  Distances and headings come from open-loop odometry (commanded wheel speeds).
+on_failure: stop
+steps:
+  - drive_straight: {distance_m: 1.0, speed_mps: 0.2}
+  - point_turn: {dpsi_deg: 90, omega_deg_s: 20}
+  - drive_straight: {distance_m: 1.0, speed_mps: 0.2}
+  - point_turn: {dpsi_deg: 90, omega_deg_s: 20}
+  - drive_straight: {distance_m: 1.0, speed_mps: 0.2}
+  - point_turn: {dpsi_deg: 90, omega_deg_s: 20}
+  - drive_straight: {distance_m: 1.0, speed_mps: 0.2}
+  - point_turn: {dpsi_deg: 90, omega_deg_s: 20}
