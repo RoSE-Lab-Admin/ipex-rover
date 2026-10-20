@@ -93,12 +93,14 @@ Everything goes under `~/roxey_data/` on the Pi:
 | `missions/<time>_<name>/` | `report.yaml` + `steps.csv` per mission, plus `bag/` if recorded |
 | `recordings/<time>_<name>/` | `bag/` + `notes.yaml` (git commit, notes) from `roxey record` / `run --record` |
 
+Bags record the standard set: `/rover/*`, `/ipex/*`, `/joy`, all `/cmd_vel*`, drum and shoulder controller commands, `/joint_states`, odometry, `/tf`, `/rosout`. Add `--all` to `record`, `run`, or `mission` to record every topic instead (bigger files).
+
 `roxey runs` shows the most recent results. Copy data to another computer with `scp -r ipex-rp5@<pi-ip>:~/roxey_data .`, and open bags in Foxglove (Open local file → the `.mcap` inside `bag/`).
 
 ## Other commands
 | Command | Does |
 |---|---|
 | `roxey energy` | live power and energy per channel and subsystem (`--once`, `--reset`) |
-| `roxey record NAME [--duration S] [--notes "..."]` | record a bag (Ctrl+C to stop) |
+| `roxey record NAME [--duration S] [--all] [--notes "..."]` | record a bag (Ctrl+C to stop) |
 | `roxey home` | home both arms (**arms move**) |
 | `roxey stop` | all stop |

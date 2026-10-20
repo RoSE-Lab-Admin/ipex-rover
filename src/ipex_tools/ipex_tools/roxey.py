@@ -147,9 +147,9 @@ def cmd_run(args):
     client = RoxeyClient()
     recorder = None
     try:
-        if args.record:
+        if args.record or args.all:
             folder = new_folder('recordings', f'run_{args.name}')
-            recorder = BagRecorder(folder, notes=args.notes,
+            recorder = BagRecorder(folder, notes=args.notes, all_topics=args.all,
                                    meta={'command': 'roxey run ' + ' '.join(sys.argv[2:])}).start()
             print(f'Recording to {folder}')
 
@@ -210,7 +210,7 @@ def cmd_mission(args):
     from ipex_tools.recorder import BagRecorder, new_folder
 
     folder = new_folder('missions', mission['name'])
-    record = args.record or mission['record']
+    record = args.record or args.all or mission['record']
     rclpy = _init_ros()
     client = RoxeyClient()
     recorder = None
@@ -218,7 +218,7 @@ def cmd_mission(args):
     t_start = time.monotonic()
     try:
         if record:
-            recorder = BagRecorder(folder, notes=args.notes,
+            recorder = BagRecorder(folder, notes=args.notes, all_topics=args.all,
                                    meta={'mission': mission['name'], 'mission_file': path}).start()
         for step in mission['steps']:
             print(f"\n--- step {step['index']}/{len(mission['steps'])}: {step['name']}")
@@ -313,7 +313,8 @@ def cmd_record(args):
     from ipex_tools.recorder import BagRecorder, new_folder
     folder = new_folder('recordings', args.name)
     os.environ.setdefault('ROS_DOMAIN_ID', DEFAULT_DOMAIN_ID)
-    recorder = BagRecorder(folder, notes=args.notes, meta={'command': 'roxey record'})
+    recorder = BagRecorder(folder, notes=args.notes, all_topics=args.all,
+                           meta={'command': 'roxey record'})
     try:
         recorder.start()
     except RuntimeError as e:
@@ -423,6 +424,7 @@ def build_parser():
     p.add_argument('params', nargs='*', help='key=value parameters, e.g. theta_deg=-10')
     p.add_argument('--tag', default='', help='label stored in the run log')
     p.add_argument('--record', action='store_true', help='record a bag for this run')
+    p.add_argument('--all', action='store_true', help='record every topic (implies --record)')
     p.add_argument('--notes', default='', help='notes saved with the recording')
     p.set_defaults(func=cmd_run)
 
@@ -430,6 +432,7 @@ def build_parser():
     p.add_argument('file', help='path, or an installed example name')
     p.add_argument('--check', action='store_true', help='validate only, nothing moves')
     p.add_argument('--record', action='store_true', help='record a bag for the whole mission')
+    p.add_argument('--all', action='store_true', help='record every topic (implies --record)')
     p.add_argument('--notes', default='', help='notes saved with the recording')
     p.set_defaults(func=cmd_mission)
 
@@ -440,6 +443,7 @@ def build_parser():
     p = sub.add_parser('record', help='record a bag (Ctrl+C to stop)')
     p.add_argument('name', help='recording name, e.g. drum_sweep')
     p.add_argument('--duration', type=float, default=None, help='seconds (default: until Ctrl+C)')
+    p.add_argument('--all', action='store_true', help='record every topic, not just the standard set')
     p.add_argument('--notes', default='', help='notes saved with the recording')
     p.set_defaults(func=cmd_record)
 

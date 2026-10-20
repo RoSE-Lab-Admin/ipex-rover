@@ -25,7 +25,7 @@ steps:
 
   - idle: {t_wait_s: 10}                          # idle power baseline (E above idle uses it)
 
-  - set_arm: {arm: front, theta_deg: 0}           # arm: front | rear | both
+  - set_arm: {arm: both, theta_deg: 0}            # arm: front | rear | both
 
   # --- Long form: adds a tag (shown in reports and the run log).
   - primitive: drive_straight
@@ -64,7 +64,7 @@ steps:
       drum_steps_s: 2000
       duration_s: 5
 
-  - set_arm: {arm: front, theta_deg: 45}          # park the arm at home
+  - set_arm: {arm: both, theta_deg: 45}           # park both arms at home
 
 # Not capable on this rover yet (would fail validation): scan_terrain, recharge.
 # Full primitive list and parameters: `roxey prims` and `roxey prims <name>`.

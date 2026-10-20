@@ -17,7 +17,9 @@ import yaml
 # Everything needed for time/energy characterization and debugging.
 DEFAULT_TOPICS_REGEX = (
     r'/rover/.*|/ipex/.*|/joint_states|/cmd_vel.*|/joy|'
-    r'/diff_drive_controller/odom|/tf|/tf_static|/rosout'
+    r'/diff_drive_controller/odom|/diff_drive_controller/cmd_vel|'
+    r'/(front|rear)_(drum|shoulder)_controller/commands|'
+    r'/tf|/tf_static|/rosout'
 )
 
 DATA_DIR = os.path.expanduser(os.environ.get('ROXEY_DATA_DIR', '~/roxey_data'))
@@ -51,20 +53,23 @@ def git_info():
 
 class BagRecorder:
 
-    def __init__(self, folder, notes='', meta=None, topics_regex=DEFAULT_TOPICS_REGEX):
+    def __init__(self, folder, notes='', meta=None, topics_regex=DEFAULT_TOPICS_REGEX,
+                 all_topics=False):
         self.folder = folder
         self.bag_dir = os.path.join(folder, 'bag')
         self.notes = notes
         self.meta = meta or {}
         self.topics_regex = topics_regex
+        self.all_topics = all_topics    # True: every topic (ros2 bag record -a)
         self.proc = None
         self.started = None
 
     def start(self, warmup_s=1.5):
         log = open(os.path.join(self.folder, 'record.log'), 'w')
+        selection = ['-a'] if self.all_topics else ['-e', self.topics_regex]
         self.proc = subprocess.Popen(
             ['ros2', 'bag', 'record', '-o', self.bag_dir,
-             '-e', self.topics_regex, '--include-hidden-topics'],
+             *selection, '--include-hidden-topics'],
             stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         self.started = datetime.datetime.now()
         self._write_notes()
@@ -89,7 +94,7 @@ class BagRecorder:
             'started': self.started.isoformat(timespec='seconds') if self.started else None,
             'stopped': stopped.isoformat(timespec='seconds') if stopped else None,
             'notes': self.notes,
-            'topics_regex': self.topics_regex,
+            'topics': 'all' if self.all_topics else self.topics_regex,
             **git_info(),
             **self.meta,
         }
