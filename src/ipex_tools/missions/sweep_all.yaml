@@ -1,0 +1,436 @@
+# ============================================================================
+# Sweep: every sweep above in one run: arms, drums, drive, point turns, arcs.
+#
+#   roxey mission sweep_all --check     validate only (nothing moves)
+#   roxey mission sweep_all             run (records a bag)
+#
+# One parameter changes at a time; the others stay at their defaults.
+# A 3 s idle follows every step so the next step's idle baseline
+# (the 2 s before it starts) is clean.
+#
+# Before running: arms homed (A or `roxey home`). Drums clear; about 2.5 x 2.5 m clear floor.
+# Someone on the controller (B = all stop).
+# About 30 minutes.
+#
+# Same steps and tags as sweep_set_arm, sweep_drums, sweep_drive_straight,
+# sweep_point_turn and sweep_arc_turn, run back to back. Run those
+# individually to repeat one sweep. Battery: ~30 min of mostly light load.
+# ============================================================================
+
+save_as:                # output folder name, e.g. arc_sweep_lab_oct21
+                        # (empty = <date_time>_<name>; _2, _3 added if it exists)
+
+name: sweep_all
+description: >
+  All parameter sweeps (arms, drums, drive, point turns, arcs) in one run.
+record: true
+on_failure: stop
+
+steps:
+  - {primitive: idle, tag: baseline_start, params: {t_wait_s: 10}}
+
+  # --- sweep_set_arm: down sweep (move, hold 5 s) ----------------------------
+  - {primitive: set_arm, tag: arm_down_40, params: {arm: both, theta_deg: 40}}
+  - {primitive: idle, tag: hold_40, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_32, params: {arm: both, theta_deg: 32}}
+  - {primitive: idle, tag: hold_32, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_24, params: {arm: both, theta_deg: 24}}
+  - {primitive: idle, tag: hold_24, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_16, params: {arm: both, theta_deg: 16}}
+  - {primitive: idle, tag: hold_16, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_8, params: {arm: both, theta_deg: 8}}
+  - {primitive: idle, tag: hold_8, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_0, params: {arm: both, theta_deg: 0}}
+  - {primitive: idle, tag: hold_0, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_-8, params: {arm: both, theta_deg: -8}}
+  - {primitive: idle, tag: hold_-8, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_-16, params: {arm: both, theta_deg: -16}}
+  - {primitive: idle, tag: hold_-16, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_-24, params: {arm: both, theta_deg: -24}}
+  - {primitive: idle, tag: hold_-24, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_-32, params: {arm: both, theta_deg: -32}}
+  - {primitive: idle, tag: hold_-32, params: {t_wait_s: 5}}
+
+  # --- sweep_set_arm: up sweep -----------------------------------------------
+  - {primitive: set_arm, tag: arm_up_-24, params: {arm: both, theta_deg: -24}}
+  - {primitive: idle, tag: hold_up_-24, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_-16, params: {arm: both, theta_deg: -16}}
+  - {primitive: idle, tag: hold_up_-16, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_-8, params: {arm: both, theta_deg: -8}}
+  - {primitive: idle, tag: hold_up_-8, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_0, params: {arm: both, theta_deg: 0}}
+  - {primitive: idle, tag: hold_up_0, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_8, params: {arm: both, theta_deg: 8}}
+  - {primitive: idle, tag: hold_up_8, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_16, params: {arm: both, theta_deg: 16}}
+  - {primitive: idle, tag: hold_up_16, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_24, params: {arm: both, theta_deg: 24}}
+  - {primitive: idle, tag: hold_up_24, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_32, params: {arm: both, theta_deg: 32}}
+  - {primitive: idle, tag: hold_up_32, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_40, params: {arm: both, theta_deg: 40}}
+  - {primitive: idle, tag: hold_up_40, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_park, params: {arm: both, theta_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_drums: drum speed, dig direction (250..2500 steps/s) ------------
+  - {primitive: excavate, tag: dig_drum_250, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_500, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_750, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 750, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_1000, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 1000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_1250, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 1250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_1500, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 1500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_1750, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 1750, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_2000, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_2250, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_2500, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_drums: drum speed, dump direction (250..2500 steps/s) -----------
+  - {primitive: deposit, tag: dump_drum_250, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_500, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_750, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 750, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_1000, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 1000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_1250, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 1250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_1500, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 1500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_1750, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 1750, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_2000, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_2250, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 2250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_2500, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 2500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_drums: dig duration at 2000 steps/s (1..10 s) -------------------
+  - {primitive: excavate, tag: dig_dur_1, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 1}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_2, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_3, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 3}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_4, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 4}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_5, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_6, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 6}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_7, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 7}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_8, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 8}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_9, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 9}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_10, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 10}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_drive_straight: speed (1 m each way) ----------------------------
+  - {primitive: drive_straight, tag: fwd_v0.08, params: {distance_m: 1, speed_mps: 0.08}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.08, params: {distance_m: -1, speed_mps: 0.08}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.16, params: {distance_m: 1, speed_mps: 0.16}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.16, params: {distance_m: -1, speed_mps: 0.16}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.24, params: {distance_m: 1, speed_mps: 0.24}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.24, params: {distance_m: -1, speed_mps: 0.24}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.32, params: {distance_m: 1, speed_mps: 0.32}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.32, params: {distance_m: -1, speed_mps: 0.32}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.4, params: {distance_m: 1, speed_mps: 0.4}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.4, params: {distance_m: -1, speed_mps: 0.4}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.48, params: {distance_m: 1, speed_mps: 0.48}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.48, params: {distance_m: -1, speed_mps: 0.48}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.56, params: {distance_m: 1, speed_mps: 0.56}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.56, params: {distance_m: -1, speed_mps: 0.56}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.64, params: {distance_m: 1, speed_mps: 0.64}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.64, params: {distance_m: -1, speed_mps: 0.64}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.72, params: {distance_m: 1, speed_mps: 0.72}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.72, params: {distance_m: -1, speed_mps: 0.72}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_v0.8, params: {distance_m: 1, speed_mps: 0.8}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_v0.8, params: {distance_m: -1, speed_mps: 0.8}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_drive_straight: distance (0.2 m/s each way) ---------------------
+  - {primitive: drive_straight, tag: fwd_d0.2, params: {distance_m: 0.2, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d0.2, params: {distance_m: -0.2, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d0.4, params: {distance_m: 0.4, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d0.4, params: {distance_m: -0.4, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d0.6, params: {distance_m: 0.6, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d0.6, params: {distance_m: -0.6, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d0.8, params: {distance_m: 0.8, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d0.8, params: {distance_m: -0.8, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d1, params: {distance_m: 1, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d1, params: {distance_m: -1, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d1.2, params: {distance_m: 1.2, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d1.2, params: {distance_m: -1.2, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d1.4, params: {distance_m: 1.4, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d1.4, params: {distance_m: -1.4, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d1.6, params: {distance_m: 1.6, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d1.6, params: {distance_m: -1.6, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d1.8, params: {distance_m: 1.8, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d1.8, params: {distance_m: -1.8, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: fwd_d2, params: {distance_m: 2, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: drive_straight, tag: back_d2, params: {distance_m: -2, speed_mps: 0.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_point_turn: turn rate (90 deg each way) -------------------------
+  - {primitive: point_turn, tag: left_w5, params: {dpsi_deg: 90, omega_deg_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w5, params: {dpsi_deg: -90, omega_deg_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w10, params: {dpsi_deg: 90, omega_deg_s: 10}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w10, params: {dpsi_deg: -90, omega_deg_s: 10}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w15, params: {dpsi_deg: 90, omega_deg_s: 15}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w15, params: {dpsi_deg: -90, omega_deg_s: 15}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w20, params: {dpsi_deg: 90, omega_deg_s: 20}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w20, params: {dpsi_deg: -90, omega_deg_s: 20}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w25, params: {dpsi_deg: 90, omega_deg_s: 25}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w25, params: {dpsi_deg: -90, omega_deg_s: 25}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w30, params: {dpsi_deg: 90, omega_deg_s: 30}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w30, params: {dpsi_deg: -90, omega_deg_s: 30}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w35, params: {dpsi_deg: 90, omega_deg_s: 35}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w35, params: {dpsi_deg: -90, omega_deg_s: 35}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w40, params: {dpsi_deg: 90, omega_deg_s: 40}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w40, params: {dpsi_deg: -90, omega_deg_s: 40}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w45, params: {dpsi_deg: 90, omega_deg_s: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w45, params: {dpsi_deg: -90, omega_deg_s: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_w50, params: {dpsi_deg: 90, omega_deg_s: 50}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_w50, params: {dpsi_deg: -90, omega_deg_s: 50}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_point_turn: turn angle (17.2 deg/s) -----------------------------
+  - {primitive: point_turn, tag: left_a36, params: {dpsi_deg: 36, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a36, params: {dpsi_deg: -36, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a72, params: {dpsi_deg: 72, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a72, params: {dpsi_deg: -72, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a108, params: {dpsi_deg: 108, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a108, params: {dpsi_deg: -108, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a144, params: {dpsi_deg: 144, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a144, params: {dpsi_deg: -144, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a180, params: {dpsi_deg: 180, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a180, params: {dpsi_deg: -180, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a216, params: {dpsi_deg: 216, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a216, params: {dpsi_deg: -216, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a252, params: {dpsi_deg: 252, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a252, params: {dpsi_deg: -252, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a288, params: {dpsi_deg: 288, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a288, params: {dpsi_deg: -288, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a324, params: {dpsi_deg: 324, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a324, params: {dpsi_deg: -324, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: left_a360, params: {dpsi_deg: 360, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: point_turn, tag: right_a360, params: {dpsi_deg: -360, omega_deg_s: 17.2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_arc_turn: radius (0.2 m/s, 45 deg) ------------------------------
+  - {primitive: arc_turn, tag: fwd_r0.3, params: {r_arc_m: 0.3, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r0.3, params: {r_arc_m: 0.3, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r0.5, params: {r_arc_m: 0.5, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r0.5, params: {r_arc_m: 0.5, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r0.7, params: {r_arc_m: 0.7, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r0.7, params: {r_arc_m: 0.7, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r0.9, params: {r_arc_m: 0.9, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r0.9, params: {r_arc_m: 0.9, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r1.1, params: {r_arc_m: 1.1, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r1.1, params: {r_arc_m: 1.1, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r1.3, params: {r_arc_m: 1.3, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r1.3, params: {r_arc_m: 1.3, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r1.5, params: {r_arc_m: 1.5, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r1.5, params: {r_arc_m: 1.5, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r1.7, params: {r_arc_m: 1.7, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r1.7, params: {r_arc_m: 1.7, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r1.9, params: {r_arc_m: 1.9, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r1.9, params: {r_arc_m: 1.9, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_r2.1, params: {r_arc_m: 2.1, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_r2.1, params: {r_arc_m: 2.1, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_arc_turn: speed (1.0 m radius, 45 deg) --------------------------
+  - {primitive: arc_turn, tag: fwd_v0.08, params: {r_arc_m: 1, speed_mps: 0.08, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.08, params: {r_arc_m: 1, speed_mps: -0.08, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.16, params: {r_arc_m: 1, speed_mps: 0.16, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.16, params: {r_arc_m: 1, speed_mps: -0.16, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.24, params: {r_arc_m: 1, speed_mps: 0.24, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.24, params: {r_arc_m: 1, speed_mps: -0.24, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.32, params: {r_arc_m: 1, speed_mps: 0.32, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.32, params: {r_arc_m: 1, speed_mps: -0.32, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.4, params: {r_arc_m: 1, speed_mps: 0.4, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.4, params: {r_arc_m: 1, speed_mps: -0.4, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.48, params: {r_arc_m: 1, speed_mps: 0.48, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.48, params: {r_arc_m: 1, speed_mps: -0.48, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.56, params: {r_arc_m: 1, speed_mps: 0.56, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.56, params: {r_arc_m: 1, speed_mps: -0.56, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.64, params: {r_arc_m: 1, speed_mps: 0.64, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.64, params: {r_arc_m: 1, speed_mps: -0.64, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.72, params: {r_arc_m: 1, speed_mps: 0.72, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.72, params: {r_arc_m: 1, speed_mps: -0.72, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_v0.8, params: {r_arc_m: 1, speed_mps: 0.8, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_v0.8, params: {r_arc_m: 1, speed_mps: -0.8, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- sweep_arc_turn: turn angle (1.0 m radius, 0.2 m/s) --------------------
+  - {primitive: arc_turn, tag: fwd_a9, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 9}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a9, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -9}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a18, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 18}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a18, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -18}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a27, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 27}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a27, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -27}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a36, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 36}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a36, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -36}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a45, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a45, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a54, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 54}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a54, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -54}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a63, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 63}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a63, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -63}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a72, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 72}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a72, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -72}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a81, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 81}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a81, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -81}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: fwd_a90, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 90}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: arc_turn, tag: back_a90, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -90}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  - {primitive: idle, tag: baseline_end, params: {t_wait_s: 10}}

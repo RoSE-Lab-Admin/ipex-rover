@@ -30,10 +30,11 @@ roxey run idle t_wait_s=30 --tag baseline
 
 ## 2. Mission files: a sequence of primitives
 ```yaml
+save_as: dig_test_run1            # optional: output folder name (default <date_time>_<name>)
 name: dig_cycle                   # optional; defaults to the file name
 description: Dig, back up, dump.
 record: true                      # optional: bag for the whole mission
-on_failure: stop                  # stop (default) or continue
+on_failure: stop                  # stop (default) or continue; ESTOP / override / Ctrl+C always stop
 steps:
   - set_arm: {arm: front, theta_deg: 0}                  # short form
   - primitive: excavate                                  # long form (adds a tag)
@@ -46,10 +47,15 @@ steps:
 roxey mission my_test.yaml --check     # validate only, nothing moves
 roxey mission my_test.yaml             # run
 roxey mission dig_cycle --record       # installed example, with a bag
+roxey mission sweep_all --save-as lab_oct21   # choose the output folder name
 ```
 The whole file is validated before anything moves (unknown primitives, bad or missing parameters, unsupported features). The output is a per-step table plus mission totals (time, energy, energy above idle).
 
-Installed examples: `idle_baseline`, `arm_check`, `dig_cycle`, `drive_square`.
+Output goes to `~/roxey_data/missions/<save_as>/`, or `<date_time>_<name>/` if `save_as` is empty. An existing folder is never overwritten: `_2`, `_3`, ... is added.
+
+Installed examples: `example_mission` (every feature, commented), `idle_baseline`, `arm_check`, `dig_cycle`, `drive_square`.
+
+Parameter sweeps (one parameter at a time, 10 values each, 3 s idle between steps, bag recorded): `sweep_set_arm`, `sweep_drums`, `sweep_drive_straight`, `sweep_point_turn`, `sweep_arc_turn`, or `sweep_all` for everything in one run (~30 min).
 
 ## 3. Python: `RoxeyClient`
 ```python

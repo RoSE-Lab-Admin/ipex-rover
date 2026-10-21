@@ -54,3 +54,36 @@ def test_bad_on_failure(tmp_path):
             steps:
               - idle: {t_wait_s: 1}
         """))
+
+
+def test_save_as(tmp_path):
+    m = load_mission(write(tmp_path, """
+        save_as: lab_run-1.b
+        steps:
+          - idle: {t_wait_s: 1}
+    """))
+    assert m['save_as'] == 'lab_run-1.b'
+
+    m = load_mission(write(tmp_path, """
+        save_as:
+        steps:
+          - idle: {t_wait_s: 1}
+    """))
+    assert m['save_as'] == ''
+
+    for bad in ('../escape', 'a/b', '.hidden', 'has space'):
+        with pytest.raises(MissionError):
+            load_mission(write(tmp_path, f"""
+                save_as: '{bad}'
+                steps:
+                  - idle: {{t_wait_s: 1}}
+            """))
+
+
+def test_new_folder_never_overwrites(tmp_path, monkeypatch):
+    from ipex_tools import recorder
+    monkeypatch.setattr(recorder, 'DATA_DIR', str(tmp_path))
+    first = recorder.new_folder('missions', 'run', exact=True)
+    second = recorder.new_folder('missions', 'run', exact=True)
+    assert os.path.basename(first) == 'run'
+    assert os.path.basename(second) == 'run_2'

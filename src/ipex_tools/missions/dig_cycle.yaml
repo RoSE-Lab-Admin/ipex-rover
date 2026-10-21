@@ -1,3 +1,4 @@
+save_as:                # output folder name (empty = <date_time>_<name>)
 name: dig_cycle
 description: >
   Excavate with the front arm while crawling forward, back up, then dump.

@@ -18,6 +18,7 @@ ROS_DOMAIN_ID defaults to 42 (the rover's) if not set.
 
 import argparse
 import csv
+import datetime
 import math
 import os
 import sys
@@ -26,6 +27,9 @@ import time
 import yaml
 
 DEFAULT_DOMAIN_ID = '42'
+
+# A mission always ends on these, whatever its on_failure setting.
+ALWAYS_STOP = ('ESTOP', 'OPERATOR_OVERRIDE', 'CANCELED')
 
 
 # ============================================================================
@@ -178,11 +182,15 @@ def cmd_run(args):
 
 def cmd_mission(args):
     from ipex_tools.missions import (
-        MissionError, find_mission, installed_examples, load_mission, validate_mission)
+        MissionError, check_save_as, find_mission, installed_examples, load_mission,
+        validate_mission)
 
     try:
         path = find_mission(args.file)
         mission = load_mission(path)
+        if args.save_as:
+            check_save_as(args.save_as)
+            mission['save_as'] = args.save_as
     except MissionError as e:
         print(f'roxey mission: {e}', file=sys.stderr)
         examples = installed_examples()
@@ -209,12 +217,17 @@ def cmd_mission(args):
     from ipex_tools.client import RoxeyClient, RoxeyError
     from ipex_tools.recorder import BagRecorder, new_folder
 
-    folder = new_folder('missions', mission['name'])
+    if mission['save_as']:
+        folder = new_folder('missions', mission['save_as'], exact=True)
+    else:
+        folder = new_folder('missions', mission['name'])
+    print(f'Saving to {folder}')
     record = args.record or args.all or mission['record']
     rclpy = _init_ros()
     client = RoxeyClient()
     recorder = None
     results = []
+    started = datetime.datetime.now().isoformat(timespec='seconds')
     t_start = time.monotonic()
     try:
         if record:
@@ -227,6 +240,9 @@ def cmd_mission(args):
             r.tag = step['tag']
             results.append(r)
             _print_result(r)
+            if not r.success and r.failure_code in ALWAYS_STOP:
+                print(f'\nStopping mission ({r.failure_code}).')
+                break
             if not r.success and mission['on_failure'] == 'stop':
                 print('\nStopping mission (on_failure: stop).')
                 break
@@ -242,7 +258,7 @@ def cmd_mission(args):
         _shutdown(rclpy)
 
     summary = _mission_summary(mission, results, wall)
-    _write_mission_report(folder, mission, path, results, summary, bool(recorder))
+    _write_mission_report(folder, mission, path, results, summary, bool(recorder), started)
     print('\n=== Mission summary')
     print(f"  steps completed  {summary['steps_succeeded']}/{summary['steps_total']}")
     print(f"  time (steps)     {_fmt(summary['time_s'], 2)} s   (wall {_fmt(wall, 1)} s)")
@@ -269,10 +285,11 @@ def _mission_summary(mission, results, wall):
     }
 
 
-def _write_mission_report(folder, mission, path, results, summary, recorded):
+def _write_mission_report(folder, mission, path, results, summary, recorded, started):
     rows = [r.as_row() for r in results]
     with open(os.path.join(folder, 'report.yaml'), 'w') as f:
-        yaml.safe_dump({'mission': mission['name'], 'file': path, 'recorded_bag': recorded,
+        yaml.safe_dump({'mission': mission['name'], 'file': path, 'started': started,
+                        'recorded_bag': recorded,
                         'summary': summary, 'steps': rows}, f, sort_keys=False)
     if rows:
         fields = []
@@ -433,6 +450,8 @@ def build_parser():
     p.add_argument('--check', action='store_true', help='validate only, nothing moves')
     p.add_argument('--record', action='store_true', help='record a bag for the whole mission')
     p.add_argument('--all', action='store_true', help='record every topic (implies --record)')
+    p.add_argument('--save-as', default='', metavar='NAME',
+                   help='output folder name (overrides save_as in the file)')
     p.add_argument('--notes', default='', help='notes saved with the recording')
     p.set_defaults(func=cmd_mission)
 

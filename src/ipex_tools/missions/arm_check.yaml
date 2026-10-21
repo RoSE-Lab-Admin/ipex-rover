@@ -1,3 +1,4 @@
+save_as:                # output folder name (empty = <date_time>_<name>)
 name: arm_check
 description: >
   Front arm down to 0 deg, hold 5 s, back up to 45 deg (home).

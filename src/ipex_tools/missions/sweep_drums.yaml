@@ -1,0 +1,98 @@
+# ============================================================================
+# Sweep: drum speed (dig and dump direction) and dig duration, all four drums.
+#
+#   roxey mission sweep_drums --check     validate only (nothing moves)
+#   roxey mission sweep_drums             run (records a bag)
+#
+# One parameter changes at a time; the others stay at their defaults.
+# A 3 s idle follows every step so the next step's idle baseline
+# (the 2 s before it starts) is clean.
+#
+# Before running: arms homed (A or `roxey home`). Drums clear of the ground and of people.
+# Someone on the controller (B = all stop).
+# About 5 minutes.
+#
+# Arms stay at +45 deg (home) and the rover does not move, so these are
+# free-spin (no-load) numbers. Dig angle and crawl speed need soil: run
+# those in the sandbox, not here.
+# ============================================================================
+
+save_as:                # output folder name, e.g. arc_sweep_lab_oct21
+                        # (empty = <date_time>_<name>; _2, _3 added if it exists)
+
+name: sweep_drums
+description: >
+  Drum speed sweeps in both directions plus a duration sweep, drums in the air.
+record: true
+on_failure: stop
+
+steps:
+  - {primitive: idle, tag: baseline_start, params: {t_wait_s: 10}}
+
+  # --- drum speed, dig direction (250..2500 steps/s) -------------------------
+  - {primitive: excavate, tag: dig_drum_250, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_500, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_750, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 750, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_1000, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 1000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_1250, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 1250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_1500, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 1500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_1750, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 1750, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_2000, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_2250, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_drum_2500, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- drum speed, dump direction (250..2500 steps/s) ------------------------
+  - {primitive: deposit, tag: dump_drum_250, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_500, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_750, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 750, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_1000, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 1000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_1250, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 1250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_1500, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 1500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_1750, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 1750, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_2000, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_2250, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 2250, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: deposit, tag: dump_drum_2500, params: {arm: both, dump_angle_deg: 45, speed_mps: 0, drum_steps_s: 2500, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  # --- dig duration at 2000 steps/s (1..10 s) --------------------------------
+  - {primitive: excavate, tag: dig_dur_1, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 1}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_2, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 2}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_3, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 3}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_4, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 4}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_5, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_6, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 6}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_7, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 7}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_8, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 8}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_9, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 9}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+  - {primitive: excavate, tag: dig_dur_10, params: {arm: both, dig_angle_deg: 45, speed_mps: 0, drum_steps_s: 2000, duration_s: 10}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  - {primitive: idle, tag: baseline_end, params: {t_wait_s: 10}}

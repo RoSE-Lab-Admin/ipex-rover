@@ -2,8 +2,9 @@
 
     name: dig_cycle                 # optional (defaults to the file name)
     description: Dig in front, turn around, dump.
+    save_as: dig_test_run1          # optional: output folder name (default <time>_<name>)
     record: true                    # optional: record a bag for the whole mission
-    on_failure: stop                # stop (default) | continue
+    on_failure: stop                # stop (default) | continue (ESTOP / override / cancel always stop)
     steps:
       - set_arm: {arm: front, theta_deg: 0}          # short form
       - primitive: drive_straight                    # long form (adds a tag)
@@ -51,6 +52,13 @@ def installed_examples():
         return []
 
 
+def check_save_as(name):
+    """Output folder names: letters, digits, '-', '_', '.' (no paths)."""
+    name = str(name)
+    if name and (not all(c.isalnum() or c in '-_.' for c in name) or name.startswith('.')):
+        raise MissionError(f"save_as '{name}': use only letters, digits, '-', '_' and '.'")
+
+
 def load_mission(path):
     with open(path) as f:
         try:
@@ -79,9 +87,13 @@ def load_mission(path):
     if on_failure not in ('stop', 'continue'):
         raise MissionError("on_failure must be 'stop' or 'continue'")
 
+    save_as = data.get('save_as') or ''
+    check_save_as(save_as)
+
     return {
         'name': data.get('name') or os.path.splitext(os.path.basename(path))[0],
         'description': data.get('description', ''),
+        'save_as': str(save_as),
         'record': bool(data.get('record', False)),
         'on_failure': on_failure,
         'steps': steps,

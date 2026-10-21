@@ -9,7 +9,11 @@
 # 2 x 2 m of clear floor, and someone near the controller (B = all stop).
 # ============================================================================
 
-name: example_mission              # used for the report folder (default: file name)
+save_as:                           # output folder in ~/roxey_data/missions/, e.g. demo_run1
+                                   # empty = <date_time>_<name>; _2, _3 added if it exists
+                                   # (same as passing --save-as NAME)
+
+name: example_mission              # mission name (default: file name)
 description: >
   Template mission: arm motion, driving, turning, a short dig and a dump,
   with an idle baseline at the start for energy comparison.
@@ -18,6 +22,7 @@ record: false                      # true = record a bag for the whole mission
                                    # (same as passing --record)
 on_failure: stop                   # stop:     end the mission at the first failure
                                    # continue: log the failure and run the next step
+                                   # (ESTOP, OPERATOR_OVERRIDE and Ctrl+C always end it)
 
 steps:
   # --- Short form:  - <primitive>: {<param>: <value>, ...}

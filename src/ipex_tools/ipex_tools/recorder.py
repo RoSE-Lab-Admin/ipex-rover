@@ -29,10 +29,17 @@ def timestamp():
     return datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
 
 
-def new_folder(kind, name):
-    """~/roxey_data/<kind>/<timestamp>_<name>/ (created)."""
-    safe = ''.join(c if c.isalnum() or c in '-_' else '_' for c in name) or 'unnamed'
-    folder = os.path.join(DATA_DIR, kind, f'{timestamp()}_{safe}')
+def new_folder(kind, name, exact=False):
+    """~/roxey_data/<kind>/<timestamp>_<name>/ (created).
+
+    exact=True uses <name> as given, adding _2, _3, ... if it already exists.
+    """
+    safe = ''.join(c if c.isalnum() or c in '-_.' else '_' for c in name) or 'unnamed'
+    base = os.path.join(DATA_DIR, kind, safe if exact else f'{timestamp()}_{safe}')
+    folder, n = base, 1
+    while exact and os.path.exists(folder):
+        n += 1
+        folder = f'{base}_{n}'
     os.makedirs(folder, exist_ok=True)
     return folder
 

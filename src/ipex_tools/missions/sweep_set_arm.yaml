@@ -1,0 +1,75 @@
+# ============================================================================
+# Sweep: shoulder angle, both arms, +40 to -32 deg in 8 deg steps, down then up.
+#
+#   roxey mission sweep_set_arm --check     validate only (nothing moves)
+#   roxey mission sweep_set_arm             run (records a bag)
+#
+# One parameter changes at a time; the others stay at their defaults.
+# A 3 s idle follows every step so the next step's idle baseline
+# (the 2 s before it starts) is clean.
+#
+# Before running: arms homed (A or `roxey home`). Area under the drums clear.
+# Someone on the controller (B = all stop).
+# About 3 minutes.
+#
+# The 5 s idle after each move measures holding power at that angle.
+# Per-arm energy: group_energy_j (rear_arm, front_arm) in report.yaml.
+# ============================================================================
+
+save_as:                # output folder name, e.g. arc_sweep_lab_oct21
+                        # (empty = <date_time>_<name>; _2, _3 added if it exists)
+
+name: sweep_set_arm
+description: >
+  Shoulder angle sweep (10 angles, down and up) with 5 s holds.
+record: true
+on_failure: stop
+
+steps:
+  - {primitive: idle, tag: baseline_start, params: {t_wait_s: 10}}
+
+  # --- down sweep (move, hold 5 s) -------------------------------------------
+  - {primitive: set_arm, tag: arm_down_40, params: {arm: both, theta_deg: 40}}
+  - {primitive: idle, tag: hold_40, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_32, params: {arm: both, theta_deg: 32}}
+  - {primitive: idle, tag: hold_32, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_24, params: {arm: both, theta_deg: 24}}
+  - {primitive: idle, tag: hold_24, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_16, params: {arm: both, theta_deg: 16}}
+  - {primitive: idle, tag: hold_16, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_8, params: {arm: both, theta_deg: 8}}
+  - {primitive: idle, tag: hold_8, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_0, params: {arm: both, theta_deg: 0}}
+  - {primitive: idle, tag: hold_0, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_-8, params: {arm: both, theta_deg: -8}}
+  - {primitive: idle, tag: hold_-8, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_-16, params: {arm: both, theta_deg: -16}}
+  - {primitive: idle, tag: hold_-16, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_-24, params: {arm: both, theta_deg: -24}}
+  - {primitive: idle, tag: hold_-24, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_down_-32, params: {arm: both, theta_deg: -32}}
+  - {primitive: idle, tag: hold_-32, params: {t_wait_s: 5}}
+
+  # --- up sweep --------------------------------------------------------------
+  - {primitive: set_arm, tag: arm_up_-24, params: {arm: both, theta_deg: -24}}
+  - {primitive: idle, tag: hold_up_-24, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_-16, params: {arm: both, theta_deg: -16}}
+  - {primitive: idle, tag: hold_up_-16, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_-8, params: {arm: both, theta_deg: -8}}
+  - {primitive: idle, tag: hold_up_-8, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_0, params: {arm: both, theta_deg: 0}}
+  - {primitive: idle, tag: hold_up_0, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_8, params: {arm: both, theta_deg: 8}}
+  - {primitive: idle, tag: hold_up_8, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_16, params: {arm: both, theta_deg: 16}}
+  - {primitive: idle, tag: hold_up_16, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_24, params: {arm: both, theta_deg: 24}}
+  - {primitive: idle, tag: hold_up_24, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_32, params: {arm: both, theta_deg: 32}}
+  - {primitive: idle, tag: hold_up_32, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_up_40, params: {arm: both, theta_deg: 40}}
+  - {primitive: idle, tag: hold_up_40, params: {t_wait_s: 5}}
+  - {primitive: set_arm, tag: arm_park, params: {arm: both, theta_deg: 45}}
+  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
+
+  - {primitive: idle, tag: baseline_end, params: {t_wait_s: 10}}

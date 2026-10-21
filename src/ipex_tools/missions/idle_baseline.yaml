@@ -1,3 +1,4 @@
+save_as:                # output folder name (empty = <date_time>_<name>)
 name: idle_baseline
 description: >
   Measure idle power: everything powered, nothing moving, for 60 s.
