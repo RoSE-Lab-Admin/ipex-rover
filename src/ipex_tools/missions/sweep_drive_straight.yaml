@@ -1,5 +1,5 @@
 # ============================================================================
-# Sweep: drive speed (0.08..0.80 m/s) and distance (0.2..2.0 m).
+# Sweep: drive speed (10 values, 0.08..0.80 m/s) and distance (0.5, 1, 2 m).
 #
 #   roxey mission sweep_drive_straight --check     validate only (nothing moves)
 #   roxey mission sweep_drive_straight             run (records a bag)
@@ -10,10 +10,13 @@
 #
 # Before running: arms homed and up, about 2.5 m of clear straight floor ahead.
 # Someone on the controller (B = all stop).
-# About 6 minutes.
+# About 4 minutes.
 #
 # Every forward run is followed by the same run backward, so the rover
-# ends near where it started. Distance is open-loop: drift accumulates.
+# ends near where it started; the back runs double as reverse data.
+# Distance only needs 3 points: at a fixed speed energy grows linearly
+# with distance, and 3 points give the slope plus the start/stop
+# overhead. Distance is open-loop: drift accumulates.
 # ============================================================================
 
 save_as:                # output folder name, e.g. arc_sweep_lab_oct21
@@ -71,41 +74,13 @@ steps:
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
 
   # --- distance (0.2 m/s each way) -------------------------------------------
-  - {primitive: drive_straight, tag: fwd_d0.2, params: {distance_m: 0.2, speed_mps: 0.2}}
+  - {primitive: drive_straight, tag: fwd_d0.5, params: {distance_m: 0.5, speed_mps: 0.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: back_d0.2, params: {distance_m: -0.2, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: fwd_d0.4, params: {distance_m: 0.4, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: back_d0.4, params: {distance_m: -0.4, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: fwd_d0.6, params: {distance_m: 0.6, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: back_d0.6, params: {distance_m: -0.6, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: fwd_d0.8, params: {distance_m: 0.8, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: back_d0.8, params: {distance_m: -0.8, speed_mps: 0.2}}
+  - {primitive: drive_straight, tag: back_d0.5, params: {distance_m: -0.5, speed_mps: 0.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: drive_straight, tag: fwd_d1, params: {distance_m: 1, speed_mps: 0.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: drive_straight, tag: back_d1, params: {distance_m: -1, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: fwd_d1.2, params: {distance_m: 1.2, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: back_d1.2, params: {distance_m: -1.2, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: fwd_d1.4, params: {distance_m: 1.4, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: back_d1.4, params: {distance_m: -1.4, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: fwd_d1.6, params: {distance_m: 1.6, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: back_d1.6, params: {distance_m: -1.6, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: fwd_d1.8, params: {distance_m: 1.8, speed_mps: 0.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: drive_straight, tag: back_d1.8, params: {distance_m: -1.8, speed_mps: 0.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: drive_straight, tag: fwd_d2, params: {distance_m: 2, speed_mps: 0.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}

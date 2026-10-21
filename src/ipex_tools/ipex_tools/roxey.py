@@ -17,6 +17,7 @@ ROS_DOMAIN_ID defaults to 42 (the rover's) if not set.
 """
 
 import argparse
+import collections
 import csv
 import datetime
 import math
@@ -60,6 +61,8 @@ def _print_result(r):
     print(f'\n{r.name}: {status}')
     print(f'  time            {_fmt(r.duration_s, 2)} s')
     print(f'  energy          {_fmt(r.energy_j)} J   ({_fmt(r.energy_j / 3600 if r.energy_j == r.energy_j else math.nan, 4)} Wh)')
+    avg_w = r.energy_j / r.duration_s if r.duration_s and r.duration_s > 0 else math.nan
+    print(f'  average power   {_fmt(avg_w)} W')
     print(f'  above idle      {_fmt(r.energy_above_idle_j)} J   (idle {_fmt(r.idle_power_w)} W)')
     for group, energy in r.groups.items():
         print(f'    {group:<13} {_fmt(energy)} J')
@@ -69,10 +72,21 @@ def _print_result(r):
         print(f'  message         {r.message}')
 
 
-def _progress_printer(name):
+def _progress_printer(name, window_s=1.0):
+    history = collections.deque()      # (elapsed_s, energy_j) over the last window_s
+
     def show(fb):
         pct = f'{fb.progress * 100:5.1f}%' if fb.progress >= 0 else '   ...'
-        line = f'\r[{name}] {pct}  {fb.elapsed_s:6.1f} s  {_fmt(fb.energy_j)} J  {fb.status}'
+        power = math.nan
+        if math.isfinite(fb.energy_j):
+            history.append((fb.elapsed_s, fb.energy_j))
+            while len(history) > 2 and fb.elapsed_s - history[0][0] > window_s:
+                history.popleft()
+            (t0, e0), (t1, e1) = history[0], history[-1]
+            if t1 - t0 > 0.1:
+                power = (e1 - e0) / (t1 - t0)
+        line = (f'\r[{name}] {pct}  {fb.elapsed_s:6.1f} s  {_fmt(power):>6} W  '
+                f'{_fmt(fb.energy_j)} J  {fb.status}')
         sys.stdout.write(line[:110].ljust(110))
         sys.stdout.flush()
     return show

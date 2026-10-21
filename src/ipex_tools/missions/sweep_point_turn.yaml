@@ -1,5 +1,5 @@
 # ============================================================================
-# Sweep: turn rate (5..50 deg/s) and turn angle (36..360 deg).
+# Sweep: turn rate (10 values, 5..50 deg/s) and turn angle (45, 180, 360 deg).
 #
 #   roxey mission sweep_point_turn --check     validate only (nothing moves)
 #   roxey mission sweep_point_turn             run (records a bag)
@@ -10,10 +10,12 @@
 #
 # Before running: arms homed and up, about 1.5 x 1.5 m clear around the rover.
 # Someone on the controller (B = all stop).
-# About 9 minutes.
+# About 5 minutes.
 #
 # Every left turn is followed by the same turn right, so the heading
-# returns. Point turns can STALL on high-grip floors (7 A limit).
+# returns; the right turns double as mirror data. Angle only needs 3
+# points (energy is linear in angle at a fixed rate). Point turns can
+# STALL on high-grip floors (7 A limit).
 # ============================================================================
 
 save_as:                # output folder name, e.g. arc_sweep_lab_oct21
@@ -71,41 +73,13 @@ steps:
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
 
   # --- turn angle (17.2 deg/s) -----------------------------------------------
-  - {primitive: point_turn, tag: left_a36, params: {dpsi_deg: 36, omega_deg_s: 17.2}}
+  - {primitive: point_turn, tag: left_a45, params: {dpsi_deg: 45, omega_deg_s: 17.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: right_a36, params: {dpsi_deg: -36, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: left_a72, params: {dpsi_deg: 72, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: right_a72, params: {dpsi_deg: -72, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: left_a108, params: {dpsi_deg: 108, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: right_a108, params: {dpsi_deg: -108, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: left_a144, params: {dpsi_deg: 144, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: right_a144, params: {dpsi_deg: -144, omega_deg_s: 17.2}}
+  - {primitive: point_turn, tag: right_a45, params: {dpsi_deg: -45, omega_deg_s: 17.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: point_turn, tag: left_a180, params: {dpsi_deg: 180, omega_deg_s: 17.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: point_turn, tag: right_a180, params: {dpsi_deg: -180, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: left_a216, params: {dpsi_deg: 216, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: right_a216, params: {dpsi_deg: -216, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: left_a252, params: {dpsi_deg: 252, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: right_a252, params: {dpsi_deg: -252, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: left_a288, params: {dpsi_deg: 288, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: right_a288, params: {dpsi_deg: -288, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: left_a324, params: {dpsi_deg: 324, omega_deg_s: 17.2}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: point_turn, tag: right_a324, params: {dpsi_deg: -324, omega_deg_s: 17.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: point_turn, tag: left_a360, params: {dpsi_deg: 360, omega_deg_s: 17.2}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}

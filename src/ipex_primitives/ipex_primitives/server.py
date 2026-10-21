@@ -37,7 +37,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Bool, Empty, Float32, Float64, Float64MultiArray
+from std_msgs.msg import Bool, Empty, Float32, Float64, Float64MultiArray, String
 
 from ipex_interfaces.action import Primitive as PrimitiveAction
 from ipex_interfaces.msg import EnergyState
@@ -232,6 +232,9 @@ class PrimitiveServer(Node):
                          for a in ('front', 'rear')}
         self.drum_pub = {a: self.create_publisher(Float64MultiArray, f'/{a}_drum_controller/commands', 10)
                          for a in ('front', 'rear')}
+        # Marks which primitive is running (empty = none) so a bag can be split by step.
+        self.active_pub = self.create_publisher(String, '/ipex/primitive/active', latched)
+        self.active_pub.publish(String(data=''))
 
         self.create_timer(0.05, self.publish_drive, callback_group=g)
 
@@ -306,6 +309,8 @@ class PrimitiveServer(Node):
                 raise PrimitiveFailure(Codes.UNSUPPORTED, f'{cls.NAME}: {cls.SUMMARY}')
 
             self.get_logger().info(f'Starting {goal.name} {yaml_inline(params)}')
+            self.active_pub.publish(String(data=yaml_inline(
+                {'name': goal.name, 'tag': goal.tag, 'params': params})))
             prim = cls(params, self.cfg)
             ctx = PrimitiveContext(self, goal_handle)
             ctx.e0 = e0
@@ -323,6 +328,7 @@ class PrimitiveServer(Node):
                     self.get_logger().error('cleanup failed:\n' + traceback.format_exc())
             self.drive_cmd = None
             self.drive_pub.publish(Twist())
+            self.active_pub.publish(String(data=''))
 
         duration = time.monotonic() - t0
 

@@ -1,5 +1,5 @@
 # ============================================================================
-# Sweep: arc radius (0.3..2.1 m), speed (0.08..0.80 m/s), turn angle (9..90 deg).
+# Sweep: arc radius (10 values, 0.3..2.1 m), speed (10 values, 0.08..0.80 m/s), turn angle (15, 45, 90 deg).
 #
 #   roxey mission sweep_arc_turn --check     validate only (nothing moves)
 #   roxey mission sweep_arc_turn             run (records a bag)
@@ -10,7 +10,7 @@
 #
 # Before running: arms homed and up, about 2.5 x 2.5 m clear ahead and to the left.
 # Someone on the controller (B = all stop).
-# About 8 minutes.
+# About 6 minutes.
 #
 # Every forward arc is retraced in reverse (negative speed and angle),
 # so the rover ends near where it started. Defaults while sweeping one
@@ -114,41 +114,13 @@ steps:
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
 
   # --- turn angle (1.0 m radius, 0.2 m/s) ------------------------------------
-  - {primitive: arc_turn, tag: fwd_a9, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 9}}
+  - {primitive: arc_turn, tag: fwd_a15, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 15}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: back_a9, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -9}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: fwd_a18, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 18}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: back_a18, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -18}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: fwd_a27, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 27}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: back_a27, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -27}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: fwd_a36, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 36}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: back_a36, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -36}}
+  - {primitive: arc_turn, tag: back_a15, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -15}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: arc_turn, tag: fwd_a45, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 45}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: arc_turn, tag: back_a45, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -45}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: fwd_a54, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 54}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: back_a54, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -54}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: fwd_a63, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 63}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: back_a63, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -63}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: fwd_a72, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 72}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: back_a72, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -72}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: fwd_a81, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 81}}
-  - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
-  - {primitive: arc_turn, tag: back_a81, params: {r_arc_m: 1, speed_mps: -0.2, dpsi_deg: -81}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
   - {primitive: arc_turn, tag: fwd_a90, params: {r_arc_m: 1, speed_mps: 0.2, dpsi_deg: 90}}
   - {primitive: idle, tag: gap, params: {t_wait_s: 3}}
