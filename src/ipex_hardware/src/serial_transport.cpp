@@ -57,6 +57,8 @@ SerialTransport::SerialTransport(
   for (size_t i = 0; i < 4; ++i) {
     roboclaw_current_pubs_[i] = node_->create_publisher<std_msgs::msg::Float32>(
       std::string("/rover/") + wheel_names[i] + "/roboclaw_current", 10);
+    wheel_speed_pubs_[i] = node_->create_publisher<std_msgs::msg::Float32>(
+      std::string("/rover/") + wheel_names[i] + "/speed", 10);
   }
 
   battery_voltage_pubs_[0] = node_->create_publisher<std_msgs::msg::Float32>(
@@ -261,6 +263,33 @@ void SerialTransport::handle_line(const std::string & line)
         &arm[0], &arm[1], &arm[2], &arm[3]) == 4)
     {
       publish_arm_values(roboclaw_current_pubs_, arm);
+      return;
+    }
+
+    // Measured wheel speed (rad/s) and position (rad) from the RoboClaw
+    // encoders: back left, back right, front right, front left.
+    if (std::sscanf(
+        line.c_str(), "SPEED %f %f %f %f",
+        &arm[0], &arm[1], &arm[2], &arm[3]) == 4)
+    {
+      for (size_t i = 0; i < 4; ++i) {
+        wheel_feedback_.speed_rad_s[i] = arm[i];
+      }
+      wheel_feedback_.speed_stamp = std::chrono::steady_clock::now();
+      wheel_feedback_.has_speed = true;
+      publish_arm_values(wheel_speed_pubs_, arm);
+      return;
+    }
+
+    if (std::sscanf(
+        line.c_str(), "ENC %f %f %f %f",
+        &arm[0], &arm[1], &arm[2], &arm[3]) == 4)
+    {
+      for (size_t i = 0; i < 4; ++i) {
+        wheel_feedback_.position_rad[i] = arm[i];
+      }
+      wheel_feedback_.position_stamp = std::chrono::steady_clock::now();
+      wheel_feedback_.has_position = true;
       return;
     }
   }

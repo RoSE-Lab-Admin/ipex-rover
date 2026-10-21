@@ -33,6 +33,26 @@ def arms_of(arm):
     return ['front', 'rear'] if arm == 'both' else [arm]
 
 
+# ----------------------------------------------------------------------------
+# cut depth (flat, level ground)
+# ----------------------------------------------------------------------------
+# Drum axle height above ground = pivot height + arm length * sin(theta), with
+# theta the shoulder angle from horizontal (+45 deg = home). The drum cuts
+# drum_cut_radius below its axle. Geometry from ipex.xacro; the cut radius is
+# calibrated to the PhD sim point (-45 deg -> 8.8 cm; mesh outer radius 0.149 m).
+
+def cut_depth_m(theta_deg, config):
+    """Depth of the drum's cut below the surface (negative = clearance above it)."""
+    axle = config['arm_pivot_height_m'] + config['arm_length_m'] * math.sin(math.radians(theta_deg))
+    return config['drum_cut_radius_m'] - axle
+
+
+def angle_for_depth_deg(depth_m, config):
+    """Shoulder angle that cuts depth_m below the surface (NaN if unreachable)."""
+    s = (config['drum_cut_radius_m'] - depth_m - config['arm_pivot_height_m']) / config['arm_length_m']
+    return math.degrees(math.asin(s)) if -1.0 <= s <= 1.0 else math.nan
+
+
 def wrap_pi(a):
     return math.atan2(math.sin(a), math.cos(a))
 
@@ -41,8 +61,12 @@ def wrap_pi(a):
 # shared motion helpers
 # ----------------------------------------------------------------------------
 
-def move_arms(ctx, config, arms, target_deg, progress_span=(0.0, 1.0)):
-    """Send arms to an absolute angle and wait until within tolerance."""
+def move_arms(ctx, config, arms, target_deg, progress_span=(0.0, 1.0), speed_deg_s=None):
+    """Send arms to an absolute angle and wait until within tolerance.
+
+    speed_deg_s: arm speed for this move (default: config arm_speed_deg_s).
+    The caller restores the default afterwards (see SetArm.cleanup).
+    """
     lo, hi = config['arm_min_deg'], config['arm_max_deg']
     if not lo <= target_deg <= hi:
         raise PrimitiveFailure(
@@ -58,10 +82,13 @@ def move_arms(ctx, config, arms, target_deg, progress_span=(0.0, 1.0)):
     if any(a is None for a in start.values()):
         raise PrimitiveFailure(Codes.PRECONDITION, 'no arm angle feedback (/joint_states)')
 
+    speed = config['arm_speed_deg_s'] if speed_deg_s is None else speed_deg_s
     travel = max(abs(target_deg - a) for a in start.values())
-    ctx.set_timeout(travel / config['arm_speed_deg_s'] + config['arm_timeout_margin_s'])
+    ctx.set_timeout(travel / speed + config['arm_timeout_margin_s'])
 
     for arm in arms:
+        if speed_deg_s is not None:
+            ctx.arm_speed(arm, speed_deg_s)
         ctx.arm_goto(arm, target_deg)
 
     tol = config['arm_tolerance_deg']
@@ -213,16 +240,29 @@ class SetArm(Primitive):
         Param('arm', str, default='front', choices=ARM_CHOICES),
         Param('theta_rad', float, unit='rad', help='shoulder angle (+45 deg = top / home)'),
         Param('omega_rad_s', float, default=None, unit='rad/s',
-              help='shoulder speed: fixed in firmware (~5.6 deg/s); value is recorded only'),
+              min=0.5 * DEG * (1 - 1e-9), max=5.625 * DEG * (1 + 1e-9),   # deg->rad rounding
+              help='shoulder speed, 0.5..5.625 deg/s (default 5.625, the firmware default)'),
     ]
 
     def run(self, ctx):
         target_deg = math.degrees(self.params['theta_rad'])
-        final = move_arms(ctx, self.config, arms_of(self.params['arm']), target_deg)
+        omega = self.params['omega_rad_s']
+        speed = None
+        if omega is not None:
+            lo, hi = self.config['arm_speed_min_deg_s'], self.config['arm_speed_max_deg_s']
+            speed = min(max(math.degrees(omega), lo), hi)
+        final = move_arms(ctx, self.config, arms_of(self.params['arm']), target_deg,
+                          speed_deg_s=speed)
         out = {f'final_{arm}_deg': round(a, 2) for arm, a in final.items()}
-        if self.params['omega_rad_s'] is not None:
-            out['note'] = 'omega_rad_s ignored: arm speed is fixed in firmware'
+        out.update({f'{arm}_cut_depth_m': round(cut_depth_m(a, self.config), 4) for arm, a in final.items()})
+        out['arm_speed_deg_s'] = round(speed if speed is not None else self.config['arm_speed_deg_s'], 3)
         return out
+
+    def cleanup(self, ctx):
+        # Back to the default speed so later moves and controller jogs are normal.
+        if self.params.get('omega_rad_s') is not None:
+            for arm in arms_of(self.params['arm']):
+                ctx.arm_speed(arm, self.config['arm_speed_deg_s'])
 
 
 class Excavate(Primitive):
@@ -238,8 +278,9 @@ class Excavate(Primitive):
               help='drum speed; + = dig direction'),
         Param('speed_mps', float, default=0.05, unit='m/s', min=0.0, help='crawl speed'),
         Param('duration_s', float, default=10.0, unit='s', min=0.0, help='dig time'),
-        Param('d_dig_m', float, default=None, unit='m', unsupported=True,
-              help='needs arm kinematics; use dig_angle_rad'),
+        Param('d_dig_m', float, default=None, unit='m', min=0.0,
+              help='cut depth below the surface; sets the dig angle (overrides dig_angle_rad). '
+                   'Flat, level ground; max ~0.064 m at the -40 deg limit'),
         Param('m_target_kg', float, default=None, unit='kg', unsupported=True,
               help='needs arm load cells; use duration_s'),
     ]
@@ -250,7 +291,19 @@ class Excavate(Primitive):
         omega = abs(self.params['omega_drum_rad_s'])
         check_drum_speed(self.config, omega)
 
-        move_arms(ctx, self.config, arms, math.degrees(self.params['dig_angle_rad']), (0.0, 0.2))
+        depth = self.params['d_dig_m']
+        if depth is not None:
+            angle = angle_for_depth_deg(depth, self.config)
+            lo = self.config['arm_min_deg']
+            if not angle >= lo:          # also catches NaN
+                raise PrimitiveFailure(
+                    Codes.INVALID_PARAMS,
+                    f'd_dig_m {depth:.3f} m is deeper than the arm reaches '
+                    f'({cut_depth_m(lo, self.config):.3f} m at {lo:g} deg)')
+        else:
+            angle = math.degrees(self.params['dig_angle_rad'])
+
+        move_arms(ctx, self.config, arms, angle, (0.0, 0.2))
         spin_drums(ctx, self.config, arms, omega)
         ctx.sleep(self.config['drum_spinup_s'])
 
@@ -266,7 +319,9 @@ class Excavate(Primitive):
             ctx.feedback(0.2 + 0.8 * min(elapsed / duration, 1.0) if duration else 1.0,
                          f'digging {elapsed:.1f} / {duration:.1f} s')
         ctx.stop_drive()
-        return {'dig_time_s': round(duration, 2), 'note': 'm_load not measured (no load cells)'}
+        return {'dig_time_s': round(duration, 2), 'dig_angle_deg': round(angle, 2),
+                'cut_depth_m': round(cut_depth_m(angle, self.config), 4),
+                'note': 'cut depth estimated for flat ground; m_load not measured (no load cells)'}
 
     def cleanup(self, ctx):
         for arm in arms_of(self.params['arm']):

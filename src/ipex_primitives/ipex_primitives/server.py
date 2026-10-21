@@ -51,7 +51,12 @@ from ipex_primitives.params import ParamError, parse_params_yaml, resolve_params
 CONFIG_DEFAULTS = {
     'arm_min_deg': -40.0,
     'arm_max_deg': 45.0,
-    'arm_speed_deg_s': 5.6,
+    'arm_speed_deg_s': 5.625,       # default arm speed (firmware default)
+    'arm_speed_min_deg_s': 0.5,     # firmware clamps ARM_SPEED to [min, max]
+    'arm_speed_max_deg_s': 5.625,
+    'arm_pivot_height_m': 0.3208,   # shoulder pivot above flat ground (ipex.xacro)
+    'arm_length_m': 0.3786,         # shoulder pivot to drum axle (ipex.xacro)
+    'drum_cut_radius_m': 0.141,     # effective cutting radius (fit to PhD sim: -45 deg -> 8.8 cm)
     'arm_tolerance_deg': 0.5,
     'arm_timeout_margin_s': 5.0,
     'max_speed_mps': 1.0,
@@ -181,6 +186,10 @@ class PrimitiveContext:
     def arm_goto(self, arm, deg):
         self.s.goto_pub[arm].publish(Float64(data=float(deg)))
 
+    def arm_speed(self, arm, deg_s):
+        """Arm speed for the next moves (persists on the Teensy until changed)."""
+        self.s.speed_pub[arm].publish(Float64(data=float(deg_s)))
+
     def drums(self, arm, rad_s):
         self.s.drum_pub[arm].publish(Float64MultiArray(data=[float(rad_s), float(rad_s)]))
 
@@ -230,6 +239,8 @@ class PrimitiveServer(Node):
         self.drive_pub = self.create_publisher(Twist, '/cmd_vel/primitive', 10)
         self.goto_pub = {a: self.create_publisher(Float64, f'/ipex/{a}_arm/goto', 10)
                          for a in ('front', 'rear')}
+        self.speed_pub = {a: self.create_publisher(Float64, f'/ipex/{a}_arm/speed', 10)
+                          for a in ('front', 'rear')}
         self.drum_pub = {a: self.create_publisher(Float64MultiArray, f'/{a}_drum_controller/commands', 10)
                          for a in ('front', 'rear')}
         # Marks which primitive is running (empty = none) so a bag can be split by step.

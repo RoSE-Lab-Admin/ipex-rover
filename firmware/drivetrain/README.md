@@ -18,7 +18,9 @@ Drives both RoboClaws (velocity PID speed commands) and reads all power sensors:
 | Teensy → Pi | `ARM_CURR <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply currents (A), 10 Hz |
 | Teensy → Pi | `ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply voltages (V), 10 Hz |
 | Teensy → Pi | `BATT <drivetrain_V> <pi_arm_V>` | Battery voltages (V), 10 Hz |
-| Teensy → Pi | `RC_CURR <bl> <br> <fr> <fl>` | Motor currents measured by the RoboClaws (A, signed; `nan` if no reply), 10 Hz |
+| Teensy → Pi | `RC_CURR <bl> <br> <fr> <fl>` | Motor currents reported by the RoboClaws (A, signed; `nan` if no reply), 10 Hz. **Unreliable (offset at standstill): use `CURR`.** |
+| Teensy → Pi | `SPEED <bl> <br> <fr> <fl>` | Measured wheel speed from the RoboClaw encoders (wheel rad/s, + = forward, same frame as `DRIVE`; `nan` if no reply), 10 Hz |
+| Teensy → Pi | `ENC <bl> <br> <fr> <fl>` | Wheel position from the RoboClaw encoders (rad since RoboClaw power-up, same frame), 10 Hz |
 | Teensy → Pi | `CAL_CURRENT OK SAVED <z0..z3>` / `CAL_CURRENT REJECTED ...` | Drive zeros saved (sensor-side volts, bl br fr fl), or rejected because a channel looked unpowered (outside 2.2-2.8 V) |
 | Teensy → Pi | `CAL_ARM_CURRENT OK SAVED <z0..z3>` / `... REJECTED ...` | Arm zeros saved, or rejected |
 | Teensy → Pi | `STOPPED` | STOP complete |

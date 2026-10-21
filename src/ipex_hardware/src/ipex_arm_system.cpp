@@ -178,6 +178,14 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
       }
     });
 
+  speed_sub_ = node->create_subscription<std_msgs::msg::Float64>(
+    "/ipex/" + arm_name_ + "/speed", 10,
+    [this](const std_msgs::msg::Float64 & msg) {
+      if (std::isfinite(msg.data) && msg.data > 0.0) {
+        pending_speed_deg_s_ = msg.data;
+      }
+    });
+
   RCLCPP_INFO(get_logger(), "Arm '%s' configured on %s.", arm_name_.c_str(),
     serial_device_.c_str());
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -220,6 +228,7 @@ hardware_interface::CallbackReturn IpexArmSystem::on_cleanup(
   jog_sub_.reset();
   step_sub_.reset();
   goto_sub_.reset();
+  speed_sub_.reset();
   homed_pub_.reset();
   port_.reset();
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -275,6 +284,9 @@ void IpexArmSystem::handle_line(const std::string & line)
     RCLCPP_WARN(get_logger(), "Arm '%s': homing ABORTED (not homed).", arm_name_.c_str());
   } else if (line == "STOPPED") {
     RCLCPP_WARN(get_logger(), "Arm '%s': STOPPED, brake engaged.", arm_name_.c_str());
+  } else if (starts_with(line, "ARM_SPEED")) {
+    RCLCPP_INFO(get_logger(), "Arm '%s': speed set, Teensy reports %s deg/s",
+      arm_name_.c_str(), line.c_str() + 9);
   } else if (starts_with(line, "ARM_DONE") || starts_with(line, "JOG_DONE")) {
     RCLCPP_INFO(get_logger(), "Arm '%s': %s", arm_name_.c_str(), line.c_str());
   } else if (starts_with(line, "JOG_LIMIT")) {
@@ -368,6 +380,19 @@ hardware_interface::return_type IpexArmSystem::write(
       }
       jog_sent_dir_ = desired;
       last_jog_sent_ = now;
+    }
+  }
+
+  // Arm speed: before any goto in this cycle, so the new move uses it.
+  const double speed_deg_s =
+    pending_speed_deg_s_.exchange(std::numeric_limits<double>::quiet_NaN());
+  if (std::isfinite(speed_deg_s)) {
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "ARM_SPEED %.3f", speed_deg_s);
+    if (!port_->write_line(buf)) {
+      RCLCPP_ERROR(get_logger(), "Arm '%s': failed to send %s: %s",
+        arm_name_.c_str(), buf, port_->last_error().c_str());
+      return hardware_interface::return_type::ERROR;
     }
   }
 

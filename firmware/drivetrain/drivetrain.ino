@@ -44,6 +44,8 @@ RoboClaw roboclaw2(&Serial3, 10000);
 //   ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>   (V)
 //   BATT <drivetrain_battery_V> <pi_arm_battery_V>                       (V)
 //   RC_CURR <back_left> <back_right> <front_right> <front_left>          (A, from RoboClaw)
+//   SPEED <back_left> <back_right> <front_right> <front_left>            (wheel rad/s, RoboClaw encoders)
+//   ENC <back_left> <back_right> <front_right> <front_left>              (wheel rad, RoboClaw encoders)
 //   CAL_CURRENT START / CAL_CURRENT OK SAVED <z0..z3> / CAL_CURRENT REJECTED ...
 //   CAL_ARM_CURRENT START / CAL_ARM_CURRENT OK SAVED <z0..z3> / ... REJECTED ...
 //   CAL_SHOW DRIVE <z0..z3> / CAL_SHOW ARM <z0..z3>
@@ -700,6 +702,60 @@ void read_and_send_roboclaw_currents() {
 }
 
 
+// RoboClaw speed reading (QPPS) as a signed value. The status byte's bit 0
+// marks reverse; handle both firmware styles (magnitude + flag, or signed).
+float signed_qpps(uint32_t raw, uint8_t status) {
+  int32_t qpps = (int32_t)raw;
+  if ((status & 0x01) && qpps > 0) qpps = -qpps;
+  return (float)qpps;
+}
+
+
+// Measured wheel motion from the RoboClaws' encoders, converted to the same
+// wheel frame as DRIVE (positive = rover forward on that side).
+// Same order as CURR: back left, back right, front right, front left.
+//   SPEED <bl> <br> <fr> <fl>   wheel speed, rad/s
+//   ENC <bl> <br> <fr> <fl>     wheel position, rad (since RoboClaw power-up)
+// Prints "nan" for a RoboClaw that did not answer.
+void read_and_send_wheel_feedback() {
+  const float dirs[4] = {DIR_BACK_LEFT, DIR_BACK_RIGHT, DIR_FRONT_RIGHT, DIR_FRONT_LEFT};
+  float speed[4];
+  float position[4];
+
+  // RoboClaw 1 (back): M1 = back left, M2 = back right.
+  // RoboClaw 2 (front): M1 = front right, M2 = front left.
+  uint8_t status = 0;
+  bool valid = false;
+  uint32_t raw = roboclaw1.ReadSpeedM1(RC_ADDRESS, &status, &valid);
+  speed[0] = valid ? signed_qpps(raw, status) : NAN;
+  raw = roboclaw1.ReadSpeedM2(RC_ADDRESS, &status, &valid);
+  speed[1] = valid ? signed_qpps(raw, status) : NAN;
+  raw = roboclaw2.ReadSpeedM1(RC_ADDRESS, &status, &valid);
+  speed[2] = valid ? signed_qpps(raw, status) : NAN;
+  raw = roboclaw2.ReadSpeedM2(RC_ADDRESS, &status, &valid);
+  speed[3] = valid ? signed_qpps(raw, status) : NAN;
+
+  uint32_t enc_m1 = 0, enc_m2 = 0;
+  const bool back_valid = roboclaw1.ReadEncoders(RC_ADDRESS, enc_m1, enc_m2);
+  position[0] = back_valid ? (float)(int32_t)enc_m1 : NAN;
+  position[1] = back_valid ? (float)(int32_t)enc_m2 : NAN;
+  const bool front_valid = roboclaw2.ReadEncoders(RC_ADDRESS, enc_m1, enc_m2);
+  position[2] = front_valid ? (float)(int32_t)enc_m1 : NAN;
+  position[3] = front_valid ? (float)(int32_t)enc_m2 : NAN;
+
+  Serial.print("SPEED ");
+  for (int i = 0; i < 4; ++i) {
+    Serial.print(speed[i] / WHEEL_RAD_S_TO_QPPS * dirs[i], 4);
+    Serial.print(i < 3 ? ' ' : '\n');
+  }
+  Serial.print("ENC ");
+  for (int i = 0; i < 4; ++i) {
+    Serial.print(position[i] / WHEEL_RAD_S_TO_QPPS * dirs[i], 4);
+    Serial.print(i < 3 ? ' ' : '\n');
+  }
+}
+
+
 void read_and_send_currents() {
   float currents[NUM_CURRENT_CHANNELS];
   read_currents(currents);
@@ -791,6 +847,7 @@ void loop() {
     read_and_send_voltages();
     read_and_send_currents();
     read_and_send_roboclaw_currents();
+    read_and_send_wheel_feedback();
     read_and_send_arm_sensors();
     read_and_send_battery_voltages();
   }

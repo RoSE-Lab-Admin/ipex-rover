@@ -49,6 +49,10 @@ namespace ipex_hardware
 //   /ipex/<arm_name>/goto     (std_msgs/Float64, sub) absolute degrees -> "ARM <deg>"
 //       Always sent (unlike the position controller path, which only sends
 //       when the target changes). Used by motion primitives.
+//   /ipex/<arm_name>/speed    (std_msgs/Float64, sub) arm speed deg/s -> "ARM_SPEED <deg/s>"
+//       Persists until changed (also applies to jogs). Teensy clamps to
+//       [0.5, 5.625] deg/s; default after Teensy reset is 5.625. Sent before a
+//       goto in the same cycle.
 class IpexArmSystem : public hardware_interface::SystemInterface
 {
 public:
@@ -116,11 +120,15 @@ private:
   // Absolute target requested on /goto (degrees); NaN = none pending.
   std::atomic<double> pending_goto_deg_{std::numeric_limits<double>::quiet_NaN()};
 
+  // Arm speed requested on /speed (deg/s); NaN = none pending.
+  std::atomic<double> pending_speed_deg_s_{std::numeric_limits<double>::quiet_NaN()};
+
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr all_stop_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr home_sub_;
   rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr jog_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr step_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr goto_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr speed_sub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr homed_pub_;
 };
 

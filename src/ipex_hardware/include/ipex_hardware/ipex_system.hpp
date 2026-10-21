@@ -48,6 +48,10 @@ private:
   std::string drivetrain_serial_device_;
   int drivetrain_serial_baud_ = 115200;
 
+  // Wheel state from RoboClaw encoders (falls back to commanded when stale).
+  bool use_wheel_feedback_ = true;
+  bool wheel_feedback_active_ = false;
+
   // ALL STOP: /ipex/all_stop (std_msgs/Empty) -> "STOP" to the drivetrain.
   std::atomic<bool> stop_requested_{false};
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr all_stop_sub_;

@@ -29,6 +29,8 @@ public:
 
   bool stop() override;
 
+  WheelFeedback wheel_feedback() const override {return wheel_feedback_;}
+
 private:
   bool open_port();
   void close_port();
@@ -59,6 +61,11 @@ private:
   // Motor currents measured by the RoboClaws. Index order (same as CURR):
   //   0 back left, 1 back right, 2 front right, 3 front left.
   std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> roboclaw_current_pubs_;
+
+  // Measured wheel speed (rad/s) from the RoboClaw encoders, same order:
+  // /rover/<wheel>/speed. Positions go to ros2_control only (joint_states).
+  std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 4> wheel_speed_pubs_;
+  WheelFeedback wheel_feedback_;
 
   // Battery voltage sensors: 0 drivetrain battery, 1 Pi / arm battery.
   std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 2> battery_voltage_pubs_;

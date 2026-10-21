@@ -44,6 +44,9 @@
 //   JOG STOP          End a jog (button released).
 //   DRUM <steps_s>    Drum speed, +/-DRUM_MAX_STEPS_S. Continuous (no timeout).
 //                     Applied immediately, does not interrupt the arm.
+//   ARM_SPEED <deg_s> Arm speed for moves and jogs, clamped to
+//                     [ARM_SPEED_MIN_DEG_S, ARM_SPEED_MAX_DEG_S]; default 5.625.
+//                     Applied from the next step; homing always uses the default.
 //   STOP              Stop everything: arm (stop, then brake) and drums.
 //
 // Teensy -> Raspberry Pi:
@@ -54,6 +57,7 @@
 //                                                CONFLICT|INTERRUPTED|FAULT
 //   JOG_LIMIT <deg>                      Jog refused at limit (brake never released)
 //   STOPPED                              Stop complete, brake engaged
+//   ARM_SPEED <deg_s>                    Arm speed now in use (reply to ARM_SPEED)
 //   STATE <homed> <arm_deg> <IDLE|MOVING|JOGGING|HOMING> <drum_steps_s>  10 Hz
 //   ERR NOT_HOMED | ERR BUSY | ERR UNKNOWN_COMMAND | ERR BRAKE_NOT_RELEASED
 //   # <text>                             Info; Pi ignores
@@ -99,8 +103,17 @@ const unsigned long BRAKE_RELEASE_MS = 200;  // Relay on -> brake fully released
 const unsigned long SETTLE_MS        = 50;   // Last step -> motors settled, safe to brake
 const unsigned long BRAKE_ENGAGE_MS  = 200;  // Relay off -> brake fully holding
 
-// --- ARM STEP TIMING (unchanged from original sketch) ---
-const unsigned long ARM_STEP_HALF_PERIOD_US = 800;
+// --- ARM STEP TIMING ---
+// Default = the original sketch's 800 us half-period (625 steps/s = 5.625 deg/s).
+// ARM_SPEED <deg_s> changes it for moves and jogs; homing always uses the
+// default. The max is the original speed: raise ARM_SPEED_MAX_DEG_S only after
+// checking for missed steps (encoder vs. commanded angle) at the higher speed.
+const unsigned long ARM_STEP_HALF_PERIOD_US_DEFAULT = 800;
+const float ARM_SPEED_DEFAULT_DEG_S =
+  1000000.0 / (2.0 * ARM_STEP_HALF_PERIOD_US_DEFAULT * STEPS_PER_ARM_DEG);
+const float ARM_SPEED_MIN_DEG_S = 0.5;
+const float ARM_SPEED_MAX_DEG_S = ARM_SPEED_DEFAULT_DEG_S;
+unsigned long armStepHalfPeriodUs = ARM_STEP_HALF_PERIOD_US_DEFAULT;
 
 // --- JOG ---
 const unsigned long JOG_TIMEOUT_MS = 250;    // No keepalive within this -> stop
@@ -234,7 +247,7 @@ void setArmDirection(bool up) {
   }
 }
 
-// --- ONE STEP PULSE ON BOTH ARM MOTORS (unchanged timing) ---
+// --- ONE STEP PULSE ON BOTH ARM MOTORS (half-period = armStepHalfPeriodUs) ---
 // Ends with step pins LOW. Refuses (returns false) unless the brake has been
 // released for at least BRAKE_RELEASE_MS.
 bool armStepPulse() {
@@ -245,11 +258,21 @@ bool armStepPulse() {
 
   digitalWrite(MOTOR_ENC_STEP, HIGH);
   digitalWrite(MOTOR_BRK_STEP, HIGH);
-  waitUsServicingDrum(ARM_STEP_HALF_PERIOD_US);
+  waitUsServicingDrum(armStepHalfPeriodUs);
   digitalWrite(MOTOR_ENC_STEP, LOW);
   digitalWrite(MOTOR_BRK_STEP, LOW);
-  waitUsServicingDrum(ARM_STEP_HALF_PERIOD_US);
+  waitUsServicingDrum(armStepHalfPeriodUs);
   return true;
+}
+
+// Arm speed for moves and jogs, clamped to [ARM_SPEED_MIN_DEG_S, ARM_SPEED_MAX_DEG_S].
+// Takes effect on the next step pulse (a move in progress changes speed).
+// Returns the speed actually applied.
+float setArmSpeedDegS(float deg_s) {
+  if (!(deg_s >= ARM_SPEED_MIN_DEG_S)) deg_s = ARM_SPEED_MIN_DEG_S;   // also catches NaN
+  if (deg_s > ARM_SPEED_MAX_DEG_S) deg_s = ARM_SPEED_MAX_DEG_S;
+  armStepHalfPeriodUs = (unsigned long)(1000000.0 / (2.0 * deg_s * STEPS_PER_ARM_DEG) + 0.5);
+  return 1000000.0 / (2.0 * armStepHalfPeriodUs * STEPS_PER_ARM_DEG);
 }
 
 // =============================================================================
@@ -365,6 +388,15 @@ void handleLine(char *line) {
   }
   else if (strncmp(line, "DRUM ", 5) == 0) {
     setDrumSpeed(atol(line + 5));      // Immediate; does not touch the arm
+  }
+  else if (strncmp(line, "ARM_SPEED ", 10) == 0) {
+    if (armActivity == ACT_HOMING) {
+      Serial.println("ERR BUSY");        // Homing always runs at the default speed
+    } else {
+      const float applied = setArmSpeedDegS(atof(line + 10));
+      Serial.print("ARM_SPEED ");
+      Serial.println(applied, 3);
+    }
   }
   else if (strcmp(line, "JOG UP") == 0) {
     handleJogLine(+1);
@@ -673,9 +705,14 @@ void loop() {
     case CMD_JOG:
       jogArm(jogDir);
       break;
-    case CMD_CAL:
+    case CMD_CAL: {
+      // Homing always runs at the default speed; restore the set speed after.
+      const unsigned long saved = armStepHalfPeriodUs;
+      armStepHalfPeriodUs = ARM_STEP_HALF_PERIOD_US_DEFAULT;
       homeSystem();
+      armStepHalfPeriodUs = saved;
       break;
+    }
     default:
       break;
   }

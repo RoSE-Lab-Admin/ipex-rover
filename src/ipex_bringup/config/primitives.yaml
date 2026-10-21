@@ -4,7 +4,14 @@ primitive_server:
     # Arms (must match firmware/arm/arm.ino ARM_MIN_DEG / ARM_MAX_DEG)
     arm_min_deg: -40.0
     arm_max_deg: 45.0
-    arm_speed_deg_s: 5.6          # fixed firmware step rate; used for timeouts
+    arm_speed_deg_s: 5.625        # default arm speed (= firmware default); set_arm restores it
+    arm_speed_min_deg_s: 0.5      # must match firmware ARM_SPEED_MIN_DEG_S
+    arm_speed_max_deg_s: 5.625    # must match firmware ARM_SPEED_MAX_DEG_S
+
+    # Cut depth (flat, level ground): depth = drum_cut_radius - (pivot_height + length*sin(angle))
+    arm_pivot_height_m: 0.3208    # shoulder pivot above ground (ipex.xacro: 0.3183 + 0.0025)
+    arm_length_m: 0.3786          # shoulder pivot to drum axle (ipex.xacro)
+    drum_cut_radius_m: 0.141      # fit to PhD sim (-45 deg -> 8.8 cm); mesh outer radius is 0.149
     arm_tolerance_deg: 0.5        # "reached" when within this of the target
     arm_timeout_margin_s: 5.0     # added to travel time (brake release/engage, settle)
 
