@@ -15,7 +15,7 @@ Hardware paths used:
   arms   -> /ipex/<arm>_arm/goto (absolute degrees)
   drums  -> /<arm>_drum_controller/commands (rad/s)
   inputs <- /diff_drive_controller/odom, /joint_states, /ipex/<arm>_arm/homed,
-            /rover/<wheel>/roboclaw_current, /ipex/energy
+            /rover/<wheel>/current (ACS712; the RoboClaw current reading is unreliable), /ipex/energy
 """
 
 import csv
@@ -157,7 +157,7 @@ class PrimitiveContext:
         now = time.monotonic()
         limit = self.s.cfg['stall_current_a']
         for wheel in WHEELS:
-            value, t = self.s.rc_current.get(wheel, (math.nan, -1e9))
+            value, t = self.s.drive_current.get(wheel, (math.nan, -1e9))
             if math.isfinite(value) and now - t <= FRESH_S and abs(value) >= limit:
                 self.stall_since.setdefault(wheel, now)
                 if now - self.stall_since[wheel] >= self.s.cfg['stall_time_s']:
@@ -203,7 +203,7 @@ class PrimitiveServer(Node):
         self.odom = (None, -1e9)
         self.arm_angle = {}
         self.homed = {}
-        self.rc_current = {}
+        self.drive_current = {}
         self.drive_cmd = None
 
         g = self.group
@@ -219,8 +219,8 @@ class PrimitiveServer(Node):
                 lambda m, a=arm: self.homed.__setitem__(a, m.data), latched, callback_group=g)
         for wheel in WHEELS:
             self.create_subscription(
-                Float32, f'/rover/{wheel}/roboclaw_current',
-                lambda m, w=wheel: self.rc_current.__setitem__(w, (m.data, time.monotonic())),
+                Float32, f'/rover/{wheel}/current',     # ACS712, not roboclaw_current
+                lambda m, w=wheel: self.drive_current.__setitem__(w, (m.data, time.monotonic())),
                 10, callback_group=g)
         self.create_subscription(Empty, '/ipex/all_stop', lambda _m: self.estop.set(), 10,
                                  callback_group=g)

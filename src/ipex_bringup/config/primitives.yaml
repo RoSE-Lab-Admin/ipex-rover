@@ -13,7 +13,7 @@ primitive_server:
     max_turn_rad_s: 1.0
     drive_timeout_factor: 1.5     # timeout = expected time x factor + margin
     drive_timeout_margin_s: 3.0
-    stall_current_a: 6.5          # RoboClaw-measured current (limit is 7 A)
+    stall_current_a: 6.5          # ACS712 drive current, /rover/<wheel>/current (RoboClaw limit is 7 A)
     stall_time_s: 1.0             # at/above stall current this long -> STALL
 
     # Drums: primitive omega > 0 means "dig" (= hand controller D-pad left)

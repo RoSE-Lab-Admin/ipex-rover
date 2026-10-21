@@ -42,7 +42,7 @@ Drum direction: `omega_drum_rad_s > 0` digs on `excavate` (the hand controller's
 | `PRECONDITION` | e.g. arm not homed, no odometry, no arm angle feedback |
 | `BUSY` | another primitive is running |
 | `TIMEOUT` | did not finish within its time limit (expected time × 1.5 + margin) |
-| `STALL` | a drive motor at ≥ 6.5 A (RoboClaw-measured) for ≥ 1 s |
+| `STALL` | a drive motor at ≥ 6.5 A (ACS712 sensor, `/rover/<wheel>/current`) for ≥ 1 s |
 | `ESTOP` | all stop (B / `roxey stop` / `/ipex/all_stop`) |
 | `OPERATOR_OVERRIDE` | operator used the hand controller during the primitive |
 | `CANCELED` | the caller canceled (e.g. Ctrl+C) |
