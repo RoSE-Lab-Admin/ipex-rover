@@ -24,7 +24,7 @@ Angles are SI (rad, rad/s). Every `*_rad` / `*_rad_s` parameter also accepts `*_
 | `point_turn` | yes (stalls on high-grip ground) | `dpsi_rad` (required, + = left), `omega_rad_s` (0.3) | heading change reached (odometry) | `STALL`, `TIMEOUT` |
 | `arc_turn` | yes | `r_arc_m` (required), `speed_mps` (0.2), `dpsi_rad` (required) | heading change reached | `STALL`, `TIMEOUT` |
 | `set_arm` | yes | `arm` (front), `theta_rad` (required; +45° = top/home, −40° = lowest), `omega_rad_s` (0.5–5.625°/s; default 5.625, restored after the move) | within 0.5° of target (encoder) | `PRECONDITION` (not homed), `INVALID_PARAMS` (limits), `TIMEOUT` |
-| `excavate` | yes (time-based) | `arm` (front), `dig_angle_rad` (−10°) or `d_dig_m` (cut depth, 0–0.064 m; sets the angle), `omega_drum_rad_s` (31.4 = 2000 steps/s; `drum_steps_s`), `speed_mps` (0.05 crawl), `duration_s` (10) | duration elapsed | `PRECONDITION`, `STALL`, `TIMEOUT` |
+| `excavate` | yes (time-based) | `arm` (front), `dig_angle_rad` (−10°) or `d_dig_m` (cut depth, 0–0.079 m; sets the angle), `omega_drum_rad_s` (31.4 = 2000 steps/s; `drum_steps_s`), `speed_mps` (0.05 crawl), `duration_s` (10) | duration elapsed | `PRECONDITION`, `STALL`, `TIMEOUT` |
 | `deposit` | yes (time-based) | `arm` (front), `dump_angle_rad` (45°), `omega_drum_rad_s` (31.4), `speed_mps` (0), `duration_s` (10) | duration elapsed | `PRECONDITION`, `STALL`, `TIMEOUT` |
 | `idle` | yes | `t_wait_s` (required) | t_wait elapsed | (only cancel / all stop / override) |
 | `scan_terrain` | **no** | `region` | — | always `UNSUPPORTED` (no perception sensor) |
@@ -32,7 +32,7 @@ Angles are SI (rad, rad/s). Every `*_rad` / `*_rad_s` parameter also accepts `*_
 
 Accepted but not supported yet (return `UNSUPPORTED` if given): `excavate.m_target_kg`, `deposit.h_drop_m`, `deposit.m_deposit_kg`. These need load cells / drop-height kinematics; use the angle and `duration_s` parameters meanwhile.
 
-**Cut depth** (flat, level ground): depth = `drum_cut_radius_m` − (`arm_pivot_height_m` + `arm_length_m` · sin θ) = 0.141 − (0.3208 + 0.3786 sin θ) m. Geometry from `ipex.xacro`; the cut radius is fit to the PhD sim point (−45° → 8.8 cm). The drum reaches the ground below about −28°; the deepest cut at the −40° limit is about 6.4 cm. `set_arm` and `excavate` report `cut_depth_m` (negative = clearance above the ground).
+**Cut depth** (flat, level ground): depth = `drum_cut_radius_m` − (`arm_pivot_height_m` + `arm_length_m` · sin θ) = 0.149 − (0.3132 + 0.3786 sin θ) m. Arm length and drum tooth-tip radius from the CAD; the pivot height is the CAD 0.3208 m lowered 7.6 mm to fit a loaded-arm rover measurement (−35° → 53 mm, 2026-10-21), i.e. tire compression / sinkage (will vary with soil and load). The arm with drums reads exactly 45° at home, so the angle reference is good. The drum reaches the ground below about −26°; the deepest cut at the −40° limit is about 7.9 cm. `set_arm` and `excavate` report `cut_depth_m` (negative = clearance above the ground).
 
 Drum direction: `omega_drum_rad_s > 0` digs on `excavate` (the hand controller's D-pad-left direction); `deposit` always spins in the dump direction.
 

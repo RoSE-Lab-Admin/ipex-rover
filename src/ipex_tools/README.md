@@ -53,7 +53,7 @@ The whole file is validated before anything moves (unknown primitives, bad or mi
 
 Output goes to `~/roxey_data/missions/<save_as>/`, or `<date_time>_<name>/` if `save_as` is empty. An existing folder is never overwritten: `_2`, `_3`, ... is added.
 
-Installed examples: `example_mission` (every feature, commented), `idle_baseline`, `arm_check`, `dig_cycle`, `drive_square`.
+Installed examples: `example_mission` (mock dig-haul-dump cycle, one primitive per line), `idle_baseline`, `arm_check`, `dig_cycle`, `drive_square`.
 
 Parameter sweeps (one parameter at a time, 10 values each, 3 s idle between steps, bag recorded): `sweep_set_arm`, `sweep_drums`, `sweep_drive_straight`, `sweep_point_turn`, `sweep_arc_turn`, or `sweep_all` for everything in one run (~30 min).
 

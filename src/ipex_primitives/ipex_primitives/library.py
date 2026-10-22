@@ -39,7 +39,8 @@ def arms_of(arm):
 # Drum axle height above ground = pivot height + arm length * sin(theta), with
 # theta the shoulder angle from horizontal (+45 deg = home). The drum cuts
 # drum_cut_radius below its axle. Geometry from ipex.xacro; the cut radius is
-# calibrated to the PhD sim point (-45 deg -> 8.8 cm; mesh outer radius 0.149 m).
+# the drum tooth-tip radius (mesh); the pivot height is the CAD value lowered 7.6 mm to fit a
+# loaded-arm rover measurement (-35 deg -> 53 mm, 2026-10-21): tire compression / sinkage.
 
 def cut_depth_m(theta_deg, config):
     """Depth of the drum's cut below the surface (negative = clearance above it)."""
@@ -280,7 +281,7 @@ class Excavate(Primitive):
         Param('duration_s', float, default=10.0, unit='s', min=0.0, help='dig time'),
         Param('d_dig_m', float, default=None, unit='m', min=0.0,
               help='cut depth below the surface; sets the dig angle (overrides dig_angle_rad). '
-                   'Flat, level ground; max ~0.064 m at the -40 deg limit'),
+                   'Flat, level ground; max ~0.079 m at the -40 deg limit'),
         Param('m_target_kg', float, default=None, unit='kg', unsupported=True,
               help='needs arm load cells; use duration_s'),
     ]

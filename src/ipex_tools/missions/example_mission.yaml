@@ -1,75 +1,61 @@
-# ============================================================================
-# Roxey example mission: shows every mission-file feature.
-#
-#   roxey mission example_mission --check      validate only (nothing moves)
-#   roxey mission example_mission --record     run it and record a bag
-#   roxey mission path/to/my_copy.yaml         run your own copy
-#
-# Before running: arms homed (A on the controller, or `roxey home`), about
-# 2 x 2 m of clear floor, and someone near the controller (B = all stop).
-# ============================================================================
+# Roxey example mission: mock regolith excavation and construction cycle.
+#   roxey mission example_mission --check     validate only (nothing moves)
+#   roxey mission example_mission             run (records a bag; ~6 min, needs ~2.5 x 3 m)
+# One primitive per line: {primitive, tag, params}. Arms homed first (A or `roxey home`).
+# Return arcs alternate left/right, so the rover works two dig lanes 1 m apart.
 
-save_as:                           # output folder in ~/roxey_data/missions/, e.g. demo_run1
-                                   # empty = <date_time>_<name>; _2, _3 added if it exists
-                                   # (same as passing --save-as NAME)
-
-name: example_mission              # mission name (default: file name)
-description: >
-  Template mission: arm motion, driving, turning, a short dig and a dump,
-  with an idle baseline at the start for energy comparison.
-
-record: false                      # true = record a bag for the whole mission
-                                   # (same as passing --record)
-on_failure: stop                   # stop:     end the mission at the first failure
-                                   # continue: log the failure and run the next step
-                                   # (ESTOP, OPERATOR_OVERRIDE and Ctrl+C always end it)
+save_as:                     # output folder name (empty = <date_time>_<name>)
+name: example_mission
+description: Drive to the regolith depot, dig, haul to the build site, dump; five cycles.
+record: true
+on_failure: stop             # ESTOP, operator override and Ctrl+C always stop
 
 steps:
-  # --- Short form:  - <primitive>: {<param>: <value>, ...}
-  # Angles may be given in degrees (*_deg) or radians (*_rad).
+  - {primitive: idle,           tag: baseline,     params: {t_wait_s: 5}}
+  - {primitive: set_arm,        tag: arms_home,    params: {arm: both, theta_deg: 45}}
 
-  - idle: {t_wait_s: 10}                          # idle power baseline (E above idle uses it)
+  # cycle 1
+  - {primitive: drive_straight, tag: to_depot_1,   params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: excavate,       tag: dig_1,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_1,      params: {arm: front, theta_deg: 30}}
+  - {primitive: point_turn,     tag: turn_1,       params: {dpsi_deg: 180, omega_deg_s: 25}}
+  - {primitive: drive_straight, tag: to_site_1,    params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: deposit,        tag: dump_1,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: arc_turn,       tag: return_1,     params: {r_arc_m: 0.5, speed_mps: 0.15, dpsi_deg: 180}}
 
-  - set_arm: {arm: both, theta_deg: 0}            # arm: front | rear | both
+  # cycle 2
+  - {primitive: drive_straight, tag: to_depot_2,   params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: excavate,       tag: dig_2,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_2,      params: {arm: front, theta_deg: 30}}
+  - {primitive: point_turn,     tag: turn_2,       params: {dpsi_deg: 180, omega_deg_s: 25}}
+  - {primitive: drive_straight, tag: to_site_2,    params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: deposit,        tag: dump_2,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: arc_turn,       tag: return_2,     params: {r_arc_m: 0.5, speed_mps: 0.15, dpsi_deg: -180}}
 
-  # --- Long form: adds a tag (shown in reports and the run log).
-  - primitive: drive_straight
-    tag: approach
-    params:
-      distance_m: 0.5                             # negative = backward
-      speed_mps: 0.2
+  # cycle 3
+  - {primitive: drive_straight, tag: to_depot_3,   params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: excavate,       tag: dig_3,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_3,      params: {arm: front, theta_deg: 30}}
+  - {primitive: point_turn,     tag: turn_3,       params: {dpsi_deg: 180, omega_deg_s: 25}}
+  - {primitive: drive_straight, tag: to_site_3,    params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: deposit,        tag: dump_3,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: arc_turn,       tag: return_3,     params: {r_arc_m: 0.5, speed_mps: 0.15, dpsi_deg: 180}}
 
-  - primitive: point_turn
-    tag: turn_left
-    params:
-      dpsi_deg: 90                                # + = left (counter-clockwise)
-      omega_deg_s: 20                             # turn rate
+  # cycle 4
+  - {primitive: drive_straight, tag: to_depot_4,   params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: excavate,       tag: dig_4,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_4,      params: {arm: front, theta_deg: 30}}
+  - {primitive: point_turn,     tag: turn_4,       params: {dpsi_deg: 180, omega_deg_s: 25}}
+  - {primitive: drive_straight, tag: to_site_4,    params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: deposit,        tag: dump_4,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: arc_turn,       tag: return_4,     params: {r_arc_m: 0.5, speed_mps: 0.15, dpsi_deg: -180}}
 
-  - primitive: arc_turn
-    tag: arc_back
-    params:
-      r_arc_m: 1.0                                # turning radius
-      speed_mps: 0.15
-      dpsi_deg: -90                               # - = right
+  # cycle 5
+  - {primitive: drive_straight, tag: to_depot_5,   params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: excavate,       tag: dig_5,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_5,      params: {arm: front, theta_deg: 30}}
+  - {primitive: point_turn,     tag: turn_5,       params: {dpsi_deg: 180, omega_deg_s: 25}}
+  - {primitive: drive_straight, tag: to_site_5,    params: {distance_m: 1.5, speed_mps: 0.3}}
+  - {primitive: deposit,        tag: dump_5,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
 
-  - primitive: excavate
-    tag: dig
-    params:
-      arm: both
-      dig_angle_deg: -10                          # shoulder angle while digging
-      drum_steps_s: 2000                          # drum speed (or omega_drum_rad_s)
-      speed_mps: 0.05                             # crawl speed while digging
-      duration_s: 5
-
-  - primitive: deposit
-    tag: dump
-    params:
-      arm: both
-      dump_angle_deg: 45                          # 45 = top / home
-      drum_steps_s: 2000
-      duration_s: 5
-
-  - set_arm: {arm: both, theta_deg: 45}           # park both arms at home
-
-# Not capable on this rover yet (would fail validation): scan_terrain, recharge.
-# Full primitive list and parameters: `roxey prims` and `roxey prims <name>`.
+  - {primitive: idle,           tag: baseline_end, params: {t_wait_s: 5}}
