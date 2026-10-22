@@ -60,8 +60,12 @@ diff_drive_controller:
     # Calibrate by driving a known distance. Must match ipex.ros2_control.xacro.
     wheel_radius: 0.155
 
-    open_loop: true
-    position_feedback: false
+    # Odometry from the RoboClaw wheel encoders (wheel positions in /joint_states),
+    # since 2026-10-22 after the encoder signs were verified on the rover. If the
+    # encoder telemetry drops out, IpexSystem falls back to commanded velocity.
+    # Set open_loop: true / position_feedback: false to go back to commanded-speed odometry.
+    open_loop: false
+    position_feedback: true
 
     odom_frame_id: odom
     base_frame_id: base_link

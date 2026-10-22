@@ -51,6 +51,11 @@ private:
   // Wheel state from RoboClaw encoders (falls back to commanded when stale).
   bool use_wheel_feedback_ = true;
   bool wheel_feedback_active_ = false;
+  bool wheel_feedback_logged_ = false;   // startup mode logged yet?
+  // Encoder position minus reported position, per WheelFeedback index; set when
+  // measured data starts so the reported position is continuous.
+  std::array<double, 4> position_offset_{};
+  int wheel_feedback_reads_ = 0;
 
   // ALL STOP: /ipex/all_stop (std_msgs/Empty) -> "STOP" to the drivetrain.
   std::atomic<bool> stop_requested_{false};

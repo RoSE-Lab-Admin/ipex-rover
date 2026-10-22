@@ -52,7 +52,7 @@ Drum direction: `omega_drum_rad_s > 0` digs on `excavate` (the hand controller's
 | `INTERNAL` | software error (see the rover log) |
 
 ## Known limitations (current hardware)
-- **Odometry is open-loop:** distance and heading are integrated from commanded wheel speeds. Slip is not detected and there is no IMU.
+- **Odometry is from the wheel encoders** (RoboClaw, since 2026-10-22): distance and heading are wheel travel, so slip and turn skid are not detected. There is no IMU.
 - **Arm speed** is settable from 0.5 to 5.625 °/s; faster needs ``ARM_SPEED_MAX_DEG_S`` raised in firmware after checking for missed steps. Stall / torque-limit detection isn't possible from current, because steppers draw constant current; it needs encoder-vs-commanded checking.
 - **No payload measurement:** `m_load`, `m_target`, `m_deposit` need arm load cells.
 

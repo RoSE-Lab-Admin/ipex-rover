@@ -112,7 +112,7 @@ write('sweep_drive_straight',
        'ends near where it started; the back runs double as reverse data.',
        'Distance only needs 3 points: at a fixed speed energy grows linearly',
        'with distance, and 3 points give the slope plus the start/stop',
-       'overhead. Distance is open-loop: drift accumulates.'],
+       'overhead. Distance is wheel-encoder odometry: slip is not seen.'],
       'Drive speed and distance sweeps, forward and back.',
       [('speed (1 m each way)', spd), ('distance (0.2 m/s each way)', dist)])
 

@@ -183,7 +183,7 @@ class DriveStraight(Primitive):
             ctx.feedback(min(traveled / abs(d), 1.0), f'{traveled:.2f} / {abs(d):.2f} m')
         ctx.stop_drive()
         return {'distance_m': math.copysign(traveled, d),
-                'odometry': 'open-loop (commanded wheel speeds)'}
+                'odometry': 'wheel encoders (slip not seen)'}
 
 
 class PointTurn(Primitive):
@@ -202,7 +202,7 @@ class PointTurn(Primitive):
         w = math.copysign(min(abs(self.params['omega_rad_s']), self.config['max_turn_rad_s']), dpsi)
         turned = drive_until_heading(ctx, self.config, 0.0, w, dpsi) if dpsi else 0.0
         return {'turned_rad': math.copysign(turned, dpsi),
-                'odometry': 'open-loop (commanded wheel speeds)'}
+                'odometry': 'wheel encoders (slip not seen)'}
 
 
 class ArcTurn(Primitive):
@@ -229,7 +229,7 @@ class ArcTurn(Primitive):
                                    f'turn rate {abs(w):.2f} rad/s too high; lower speed or raise radius')
         turned = drive_until_heading(ctx, self.config, v, w, dpsi)
         return {'turned_rad': math.copysign(turned, dpsi), 'turn_rate_rad_s': w,
-                'odometry': 'open-loop (commanded wheel speeds)'}
+                'odometry': 'wheel encoders (slip not seen)'}
 
 
 class SetArm(Primitive):

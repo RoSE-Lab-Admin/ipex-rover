@@ -204,7 +204,17 @@ hardware_interface::return_type IpexSystem::read(
       std::isfinite(feedback.speed_rad_s[index]) && std::isfinite(feedback.position_rad[index]);
   }
 
-  if (measured != wheel_feedback_active_) {
+  // RoboClaw encoder positions count from RoboClaw power-up. When measured
+  // data starts (or resumes after a dropout), offset it so the reported wheel
+  // position continues from its current value: no jump in odometry.
+  const bool became_measured = measured && !wheel_feedback_active_;
+
+  // Log the mode once at startup (after a 2 s grace period for the first
+  // telemetry) and on every change after that.
+  const bool startup_check_due = !wheel_feedback_logged_ &&
+    (measured || ++wheel_feedback_reads_ > 100);   // 100 reads = 2 s at 50 Hz
+  if (measured != wheel_feedback_active_ || startup_check_due) {
+    wheel_feedback_logged_ = true;
     wheel_feedback_active_ = measured;
     if (measured) {
       RCLCPP_INFO(get_logger(), "Wheel state: measured (RoboClaw encoders).");
@@ -220,8 +230,11 @@ hardware_interface::return_type IpexSystem::read(
     const std::string position_name = std::string(joint) + "/position";
 
     if (measured) {
+      if (became_measured) {
+        position_offset_[index] = feedback.position_rad[index] - get_state(position_name);
+      }
       set_state(velocity_name, feedback.speed_rad_s[index]);
-      set_state(position_name, feedback.position_rad[index]);
+      set_state(position_name, feedback.position_rad[index] - position_offset_[index]);
       continue;
     }
 
