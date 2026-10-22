@@ -13,11 +13,13 @@
   <xacro:arg name="rear_arm" default="true"/>
   <xacro:arg name="front_arm" default="true"/>
 
-  <!-- Rear arm Teensy (legacy name: back_implement). Find IDs with: ls /dev/serial/by-id/ -->
+  <!-- Arm Teensys. Find IDs with: ls /dev/serial/by-id/
+       Swapped 2026-10-22: the old assignment (rear 19972490, front 20404840)
+       drove the physically opposite arm. -->
   <xacro:arg name="rear_arm_serial_device"
-             default="/dev/serial/by-id/usb-Teensyduino_USB_Serial_19972490-if00"/>
-  <xacro:arg name="front_arm_serial_device"
              default="/dev/serial/by-id/usb-Teensyduino_USB_Serial_20404840-if00"/>
+  <xacro:arg name="front_arm_serial_device"
+             default="/dev/serial/by-id/usb-Teensyduino_USB_Serial_19972490-if00"/>
 
   <!-- false: arms do NOT move on startup; home with /ipex/home_arms -->
   <xacro:arg name="home_arms_on_start" default="false"/>

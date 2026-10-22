@@ -41,7 +41,10 @@ def _init_ros():
     if 'ROS_DOMAIN_ID' not in os.environ:
         os.environ['ROS_DOMAIN_ID'] = DEFAULT_DOMAIN_ID
     import rclpy
-    rclpy.init()
+    from rclpy.signals import SignalHandlerOptions
+    # Keep Python's own Ctrl+C (KeyboardInterrupt): rclpy's handler shuts the
+    # context down first, so the cancel request could never reach the rover.
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     return rclpy
 
 

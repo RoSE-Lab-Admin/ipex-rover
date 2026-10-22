@@ -43,8 +43,10 @@ controller:
     drum_speed_step: 500.0
     drum_speed_limit: 3000.0
     drum_steps_per_rev: 400.0  # Matches MOTOR_STEPS_PER_REV in firmware/arm/arm.ino
-    front_drum_direction: 1.0
-    rear_drum_direction: -1.0   # Rear drums spin opposite to front
+    # Directions belong to the physical arm; swapped with the arm Teensy IDs on
+    # 2026-10-22 so each physical drum keeps spinning the same way as before.
+    front_drum_direction: -1.0
+    rear_drum_direction: 1.0    # Rear drums spin opposite to front
 
     # Arms. Angle limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG
     # in firmware/arm/arm.ino), so they are not duplicated here.

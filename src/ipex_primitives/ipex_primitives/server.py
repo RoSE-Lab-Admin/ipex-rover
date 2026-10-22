@@ -65,8 +65,8 @@ CONFIG_DEFAULTS = {
     'drive_timeout_margin_s': 3.0,
     'stall_current_a': 6.5,
     'stall_time_s': 1.0,
-    'drum_dig_sign_front': -1.0,
-    'drum_dig_sign_rear': 1.0,
+    'drum_dig_sign_front': 1.0,
+    'drum_dig_sign_rear': -1.0,
     'drum_max_rad_s': 3000.0 * 2.0 * math.pi / 400.0,
     'drum_spinup_s': 1.0,
     'idle_window_s': 2.0,
@@ -100,6 +100,7 @@ class PrimitiveContext:
         self.stall_since = {}
         self.last_feedback = 0.0
         self.e0 = None
+        self.arms_commanded = set()     # arms this primitive sent a goto to
 
     # -------------------------------------------------------------- control
 
@@ -184,7 +185,19 @@ class PrimitiveContext:
         return value
 
     def arm_goto(self, arm, deg):
+        self.arms_commanded.add(arm)
         self.s.goto_pub[arm].publish(Float64(data=float(deg)))
+
+    def halt_arms(self):
+        """Stop arms this primitive moved: re-target them to where they are now.
+
+        The arm Teensy finishes a goto on its own, so ending the primitive
+        (cancel, override, timeout, stall) does not stop a move by itself.
+        """
+        for arm in self.arms_commanded:
+            angle = self.arm_angle_deg(arm)
+            if angle is not None:
+                self.s.goto_pub[arm].publish(Float64(data=float(angle)))
 
     def arm_speed(self, arm, deg_s):
         """Arm speed for the next moves (persists on the Teensy until changed)."""
@@ -335,6 +348,10 @@ class PrimitiveServer(Node):
             if prim is not None and ctx is not None:
                 try:
                     prim.cleanup(ctx)
+                    # ALL STOP already stopped every Teensy; on any other early
+                    # end, stop arm moves this primitive started.
+                    if code and code != Codes.ESTOP:
+                        ctx.halt_arms()
                 except Exception:   # noqa: BLE001
                     self.get_logger().error('cleanup failed:\n' + traceback.format_exc())
             self.drive_cmd = None

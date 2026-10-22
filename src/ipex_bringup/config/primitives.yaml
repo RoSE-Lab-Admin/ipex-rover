@@ -24,8 +24,9 @@ primitive_server:
     stall_time_s: 1.0             # at/above stall current this long -> STALL
 
     # Drums: primitive omega > 0 means "dig" (= hand controller D-pad left)
-    drum_dig_sign_front: -1.0
-    drum_dig_sign_rear: 1.0
+    # Signs belong to the physical arm; swapped with the Teensy IDs on 2026-10-22.
+    drum_dig_sign_front: 1.0
+    drum_dig_sign_rear: -1.0
     drum_max_rad_s: 47.12         # 3000 drum steps/s
     drum_spinup_s: 1.0
 

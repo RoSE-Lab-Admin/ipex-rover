@@ -122,12 +122,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "rear_arm_serial_device",
-            default_value="/dev/serial/by-id/usb-Teensyduino_USB_Serial_19972490-if00",
+            default_value="/dev/serial/by-id/usb-Teensyduino_USB_Serial_20404840-if00",
             description="Rear arm Teensy serial device (ls /dev/serial/by-id/).",
         ),
         DeclareLaunchArgument(
             "front_arm_serial_device",
-            default_value="/dev/serial/by-id/usb-Teensyduino_USB_Serial_20404840-if00",
+            default_value="/dev/serial/by-id/usb-Teensyduino_USB_Serial_19972490-if00",
             description="Front arm Teensy serial device (ls /dev/serial/by-id/).",
         ),
         DeclareLaunchArgument(

@@ -16,46 +16,46 @@ steps:
 
   # cycle 1
   - {primitive: drive_straight, tag: to_depot_1,   params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: excavate,       tag: dig_1,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
-  - {primitive: set_arm,        tag: carry_1,      params: {arm: front, theta_deg: 30}}
+  - {primitive: excavate,       tag: dig_1,        params: {arm: both, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_1,      params: {arm: both, theta_deg: 30}}
   - {primitive: point_turn,     tag: turn_1,       params: {dpsi_deg: 180, omega_deg_s: 25}}
   - {primitive: drive_straight, tag: to_site_1,    params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: deposit,        tag: dump_1,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: deposit,        tag: dump_1,       params: {arm: both, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
   - {primitive: arc_turn,       tag: return_1,     params: {r_arc_m: 0.5, speed_mps: 0.15, dpsi_deg: 180}}
 
   # cycle 2
   - {primitive: drive_straight, tag: to_depot_2,   params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: excavate,       tag: dig_2,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
-  - {primitive: set_arm,        tag: carry_2,      params: {arm: front, theta_deg: 30}}
+  - {primitive: excavate,       tag: dig_2,        params: {arm: both, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_2,      params: {arm: both, theta_deg: 30}}
   - {primitive: point_turn,     tag: turn_2,       params: {dpsi_deg: 180, omega_deg_s: 25}}
   - {primitive: drive_straight, tag: to_site_2,    params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: deposit,        tag: dump_2,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: deposit,        tag: dump_2,       params: {arm: both, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
   - {primitive: arc_turn,       tag: return_2,     params: {r_arc_m: 0.5, speed_mps: 0.15, dpsi_deg: -180}}
 
   # cycle 3
   - {primitive: drive_straight, tag: to_depot_3,   params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: excavate,       tag: dig_3,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
-  - {primitive: set_arm,        tag: carry_3,      params: {arm: front, theta_deg: 30}}
+  - {primitive: excavate,       tag: dig_3,        params: {arm: both, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_3,      params: {arm: both, theta_deg: 30}}
   - {primitive: point_turn,     tag: turn_3,       params: {dpsi_deg: 180, omega_deg_s: 25}}
   - {primitive: drive_straight, tag: to_site_3,    params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: deposit,        tag: dump_3,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: deposit,        tag: dump_3,       params: {arm: both, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
   - {primitive: arc_turn,       tag: return_3,     params: {r_arc_m: 0.5, speed_mps: 0.15, dpsi_deg: 180}}
 
   # cycle 4
   - {primitive: drive_straight, tag: to_depot_4,   params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: excavate,       tag: dig_4,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
-  - {primitive: set_arm,        tag: carry_4,      params: {arm: front, theta_deg: 30}}
+  - {primitive: excavate,       tag: dig_4,        params: {arm: both, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_4,      params: {arm: both, theta_deg: 30}}
   - {primitive: point_turn,     tag: turn_4,       params: {dpsi_deg: 180, omega_deg_s: 25}}
   - {primitive: drive_straight, tag: to_site_4,    params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: deposit,        tag: dump_4,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: deposit,        tag: dump_4,       params: {arm: both, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
   - {primitive: arc_turn,       tag: return_4,     params: {r_arc_m: 0.5, speed_mps: 0.15, dpsi_deg: -180}}
 
   # cycle 5
   - {primitive: drive_straight, tag: to_depot_5,   params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: excavate,       tag: dig_5,        params: {arm: front, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
-  - {primitive: set_arm,        tag: carry_5,      params: {arm: front, theta_deg: 30}}
+  - {primitive: excavate,       tag: dig_5,        params: {arm: both, dig_angle_deg: -30, drum_steps_s: 2000, speed_mps: 0.03, duration_s: 6}}
+  - {primitive: set_arm,        tag: carry_5,      params: {arm: both, theta_deg: 30}}
   - {primitive: point_turn,     tag: turn_5,       params: {dpsi_deg: 180, omega_deg_s: 25}}
   - {primitive: drive_straight, tag: to_site_5,    params: {distance_m: 1.5, speed_mps: 0.3}}
-  - {primitive: deposit,        tag: dump_5,       params: {arm: front, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
+  - {primitive: deposit,        tag: dump_5,       params: {arm: both, dump_angle_deg: 45, drum_steps_s: 2000, duration_s: 5}}
 
   - {primitive: idle,           tag: baseline_end, params: {t_wait_s: 5}}

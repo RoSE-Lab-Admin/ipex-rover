@@ -1,9 +1,10 @@
 """Python client for Roxey motion primitives.
 
     import rclpy
+    from rclpy.signals import SignalHandlerOptions
     from ipex_tools.client import RoxeyClient
 
-    rclpy.init()
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)   # so Ctrl+C can cancel
     roxey = RoxeyClient()
     r = roxey.run('set_arm', arm='front', theta_deg=-10)
     print(r.success, r.failure_code, r.duration_s, r.energy_j)
@@ -13,7 +14,9 @@
 Each call blocks until the primitive finishes and returns a PrimitiveResult
 with time (duration_s), energy (energy_j, energy_above_idle_j, per-group
 breakdown) and primitive-specific outputs. Ctrl+C during run() cancels the
-primitive on the rover.
+primitive on the rover and returns its CANCELED result. That needs rclpy
+initialized without its own SIGINT handler (as above); with the default
+handler the context is shut down before the cancel can be sent.
 """
 
 import math

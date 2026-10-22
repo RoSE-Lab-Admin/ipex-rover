@@ -37,8 +37,8 @@ DEFAULT_PARAMS = {
     'drum_speed_step': 500.0,
     'drum_speed_limit': 3000.0,
     'drum_steps_per_rev': 400.0,
-    'front_drum_direction': 1.0,
-    'rear_drum_direction': -1.0,
+    'front_drum_direction': -1.0,
+    'rear_drum_direction': 1.0,
 
     # Arms: tap (< hold_threshold_s) = one step; hold = jog until release.
     # Limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG).
