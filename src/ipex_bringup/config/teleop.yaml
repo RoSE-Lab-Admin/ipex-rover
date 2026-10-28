@@ -46,8 +46,9 @@ controller:
     drum_gear_ratio: 80.0            # motor : drum; must match drum_gear_ratio in ipex.ros2_control.xacro
     # Directions belong to the physical arm; swapped with the arm Teensy IDs on
     # 2026-10-22 so each physical drum keeps spinning the same way as before.
+    # Rear flipped 2026-10-28 after the rear drum motor was rewired.
     front_drum_direction: -1.0
-    rear_drum_direction: 1.0    # Rear drums spin opposite to front
+    rear_drum_direction: -1.0
 
     # Arms. Angle limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG
     # in firmware/arm/arm.ino), so they are not duplicated here.

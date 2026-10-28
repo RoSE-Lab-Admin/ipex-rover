@@ -66,7 +66,7 @@ CONFIG_DEFAULTS = {
     'stall_current_a': 6.5,
     'stall_time_s': 1.0,
     'drum_dig_sign_front': 1.0,
-    'drum_dig_sign_rear': -1.0,
+    'drum_dig_sign_rear': 1.0,
     'drum_max_rad_s': 3200.0 * 2.0 * math.pi / (400.0 * 80.0),   # 3200 steps/s = 6.0 drum RPM
     'drum_spinup_s': 1.0,
     'idle_window_s': 2.0,

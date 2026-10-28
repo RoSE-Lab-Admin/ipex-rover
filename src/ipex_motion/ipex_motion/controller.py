@@ -39,7 +39,7 @@ DEFAULT_PARAMS = {
     'drum_motor_steps_per_rev': 400.0,  # firmware MOTOR_STEPS_PER_REV
     'drum_gear_ratio': 80.0,           # motor turns per drum turn
     'front_drum_direction': -1.0,
-    'rear_drum_direction': 1.0,
+    'rear_drum_direction': -1.0,
 
     # Arms: tap (< hold_threshold_s) = one step; hold = jog until release.
     # Limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG).
