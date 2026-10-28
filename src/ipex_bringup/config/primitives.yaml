@@ -23,7 +23,7 @@ primitive_server:
     stall_current_a: 6.5          # ACS712 drive current, /rover/<wheel>/current (RoboClaw limit is 7 A)
     stall_time_s: 1.0             # at/above stall current this long -> STALL
 
-    # Drums: primitive omega > 0 means "dig" (= hand controller D-pad left)
+    # Drums: primitive omega > 0 means "dig" (= hand controller D-pad right)
     # Signs belong to the physical arm; swapped with the Teensy IDs on 2026-10-22.
     # Rear flipped 2026-10-28 after the rear drum motor was rewired; both flipped
     # again 2026-10-28 after testbed runs showed the drums digging backwards.

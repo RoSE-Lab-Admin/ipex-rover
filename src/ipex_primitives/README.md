@@ -36,7 +36,7 @@ Accepted but not supported yet (return `UNSUPPORTED` if given): `excavate.m_targ
 
 **Drum order:** `excavate` spins the drums up (`drum_spinup_s`, 1 s) before the arms lower, so they reach the ground already turning. Drums are always the last thing to stop: on any end except all stop (success, cancel, override, stall, timeout) the server halts the arms, stops the wheels, waits for odometry to show them stopped (max `drum_stop_wait_s`, 3 s) plus `drum_stop_delay_s` (0.5 s), then stops the drums. This applies to `deposit` too.
 
-Drum direction: `omega_drum_rad_s > 0` digs on `excavate` (the hand controller's D-pad-left direction); `deposit` always spins in the dump direction.
+Drum direction: `omega_drum_rad_s > 0` digs on `excavate` (the hand controller's D-pad-right direction); `deposit` always spins in the dump direction.
 
 ## Failure codes
 | Code | Meaning |

@@ -62,7 +62,7 @@ DEFAULT_PARAMS = {
     # goes back to the defaults below.
     'excavate_settings_file': '~/roxey_data/excavation_mode.yaml',
     'excavate_dig_angle_deg': -25.0,   # default, both arms
-    'excavate_drum_rpm': 2.0,          # default drum RPM, dig direction (= D-pad left)
+    'excavate_drum_rpm': 2.0,          # default drum RPM, dig direction (= D-pad right)
     'excavate_drum_rpm_step': 0.25,    # D-pad left/right
     'excavate_crawl_mps': 0.03,        # default crawl speed
     'excavate_crawl_step_mps': 0.01,   # D-pad up/down
@@ -435,7 +435,7 @@ class Controller(Node):
         self.release_arm_inputs()
         self.dig_target = {'front': s['front_deg'], 'rear': s['rear_deg']}
         self.crawl_mps = clamp(s['crawl_mps'], 0.0, self.p['excavate_crawl_max_mps'])
-        self.drum_rpm = -drum     # dig = D-pad left
+        self.drum_rpm = drum      # dig = D-pad right
         self.publish_drums()
         self.set_dig_phase('spinup')
         self.get_logger().warn(
@@ -449,8 +449,8 @@ class Controller(Node):
             for arm, angle in angles.items():
                 if angle is not None:
                     self.dig_settings[f'{arm}_deg'] = angle
-            if self.drum_rpm < 0.0:     # still digging direction
-                self.dig_settings['drum_rpm'] = -self.drum_rpm
+            if self.drum_rpm > 0.0:     # still digging direction
+                self.dig_settings['drum_rpm'] = self.drum_rpm
             self.dig_settings['crawl_mps'] = self.crawl_mps
             self.save_dig_settings()
             self.get_logger().warn(f'Saved for the next X: {self.describe_dig_settings()}.')
