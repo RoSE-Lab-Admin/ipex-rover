@@ -15,6 +15,7 @@
 #include "rclcpp_lifecycle/state.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/empty.hpp"
+#include "std_msgs/msg/float32.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "std_msgs/msg/int8.hpp"
 
@@ -130,6 +131,11 @@ private:
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr goto_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr speed_sub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr homed_pub_;
+
+  // Drum speed as reported by the Teensy (commanded; drums have no encoder):
+  // /rover/<arm_name>/drum/steps_s (motor steps/s) and /drum/rpm (drum RPM).
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr drum_steps_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr drum_rpm_pub_;
 };
 
 }  // namespace ipex_hardware

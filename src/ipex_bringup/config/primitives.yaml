@@ -27,7 +27,7 @@ primitive_server:
     # Signs belong to the physical arm; swapped with the Teensy IDs on 2026-10-22.
     drum_dig_sign_front: 1.0
     drum_dig_sign_rear: -1.0
-    drum_max_rad_s: 47.12         # 3000 drum steps/s
+    drum_max_rad_s: 0.62832       # at the drum: 3200 motor steps/s (firmware cap) / 80:1 = 6.0 drum RPM
     drum_spinup_s: 1.0
 
     # Energy

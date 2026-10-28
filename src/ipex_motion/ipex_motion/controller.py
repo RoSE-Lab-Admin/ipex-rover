@@ -14,8 +14,8 @@ from std_msgs.msg import Bool, Empty, Float64, Float64MultiArray, Int8
 # Logitech F710 -- X mode (joy_linux). Defaults; overridden by
 # ipex_bringup/config/teleop.yaml.
 #
-# User-facing units: arms in degrees, drums in firmware steps/s.
-# ros2_control uses SI (rad, rad/s); conversion happens here on publish.
+# User-facing units: arms in degrees, drums in drum RPM (after the gearbox).
+# ros2_control uses SI (rad, rad/s at the drum); conversion happens here on publish.
 DEFAULT_PARAMS = {
     'left_y_axis': 1,
     'right_y_axis': 4,
@@ -34,9 +34,10 @@ DEFAULT_PARAMS = {
     'speed_step': 0.35,
     'wheel_separation': 0.582,
 
-    'drum_speed_step': 400.0,
-    'drum_speed_limit': 3200.0,
-    'drum_steps_per_rev': 400.0,
+    'drum_rpm_step': 1.0,              # drum RPM per D-pad press
+    'drum_max_steps_s': 3200.0,        # firmware cap (DRUM_MAX_STEPS_S) = 6.0 drum RPM
+    'drum_motor_steps_per_rev': 400.0,  # firmware MOTOR_STEPS_PER_REV
+    'drum_gear_ratio': 80.0,           # motor turns per drum turn
     'front_drum_direction': -1.0,
     'rear_drum_direction': 1.0,
 
@@ -126,7 +127,7 @@ class Controller(Node):
 
         # Start at lowest drive speed, drums stopped.
         self.max_side_speed = self.p['min_side_speed']
-        self.drum_speed = 0.0
+        self.drum_rpm = 0.0     # signed drum RPM (+ = D-pad right)
 
         # Arms only accept presses once homed (reported by hardware).
         self.homed = {'front': False, 'rear': False}
@@ -143,7 +144,8 @@ class Controller(Node):
         self.get_logger().info(
             f'IPEX hand controller ready | '
             f'max speed = {self.max_side_speed:.1f} m/s | '
-            f'drum speed = {self.drum_speed:.0f} steps/s | '
+            f'drum speed = {self.drum_rpm:.1f} RPM (step {self.p["drum_rpm_step"]:g}, '
+            f'max {self.drum_max_rpm():.1f}) | '
             f'B = ALL STOP'
         )
 
@@ -229,7 +231,7 @@ class Controller(Node):
         self.cmd_pub.publish(Twist())
 
         # Drums: zero and stay zero until the D-pad changes them.
-        self.drum_speed = 0.0
+        self.drum_rpm = 0.0
         self.publish_drums()
 
         # Arms: end any jog and require all arm buttons released before
@@ -270,26 +272,33 @@ class Controller(Node):
     def handle_drums(self, msg):
         # joy_linux D-pad X: +1 = left, -1 = right
         dpad_x = self.axis(msg, self.p['dpad_x_axis'])
-        limit = self.p['drum_speed_limit']
+        limit = self.drum_max_rpm()
+        step = self.p['drum_rpm_step']
         changed = False
 
-        # D-pad right: + drum_speed_step
+        # D-pad right: + drum_rpm_step
         if self.rising('dpad_right', dpad_x < -0.5):
-            self.drum_speed = clamp(
-                self.drum_speed + self.p['drum_speed_step'], -limit, limit)
+            self.drum_rpm = clamp(round(self.drum_rpm + step, 6), -limit, limit)
             changed = True
 
-        # D-pad left: - drum_speed_step
+        # D-pad left: - drum_rpm_step
         if self.rising('dpad_left', dpad_x > 0.5):
-            self.drum_speed = clamp(
-                self.drum_speed - self.p['drum_speed_step'], -limit, limit)
+            self.drum_rpm = clamp(round(self.drum_rpm - step, 6), -limit, limit)
             changed = True
 
         # Drums are continuous: publish only on change.
         if changed:
             self.publish_drums()
             self.get_logger().info(
-                f'Drum speed: {self.drum_speed:.0f} steps/s')
+                f'Drum speed: {self.drum_rpm:.1f} RPM '
+                f'({abs(self.drum_rpm) * self.steps_s_per_drum_rpm():.0f} steps/s)')
+
+    def steps_s_per_drum_rpm(self):
+        # 1 drum RPM = gear_ratio motor revs per minute
+        return self.p['drum_motor_steps_per_rev'] * self.p['drum_gear_ratio'] / 60.0
+
+    def drum_max_rpm(self):
+        return self.p['drum_max_steps_s'] / self.steps_s_per_drum_rpm()
 
     def handle_arms(self, msg):
         threshold = self.p['trigger_pressed_threshold']
@@ -400,8 +409,9 @@ class Controller(Node):
     # -----------------------------------------------------
 
     def publish_drums(self):
-        # steps/s -> rad/s for ros2_control. Hardware converts back.
-        rad_s = self.drum_speed * 2.0 * math.pi / self.p['drum_steps_per_rev']
+        # Drum RPM -> drum rad/s for ros2_control. The hardware plugin converts
+        # back to motor steps/s with drum_steps_per_rev (motor steps x gear ratio).
+        rad_s = self.drum_rpm * 2.0 * math.pi / 60.0
 
         front = rad_s * self.p['front_drum_direction']
         rear = rad_s * self.p['rear_drum_direction']

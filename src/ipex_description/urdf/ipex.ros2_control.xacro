@@ -24,8 +24,13 @@
   <!-- false: arms do NOT move on startup; home with /ipex/home_arms -->
   <xacro:arg name="home_arms_on_start" default="false"/>
 
-  <!-- Must match firmware/arm/arm.ino MOTOR_STEPS_PER_REV -->
-  <xacro:property name="drum_steps_per_rev" value="400"/>
+  <!-- Drum joint velocity is the DRUM (after the gearbox), so the hardware plugin
+       converts with motor steps per DRUM revolution:
+       firmware/arm/arm.ino MOTOR_STEPS_PER_REV (400) x drum gear ratio (80:1).
+       drum_gear_ratio must match teleop.yaml; primitives use the same 32000. -->
+  <xacro:property name="drum_motor_steps_per_rev" value="400"/>
+  <xacro:property name="drum_gear_ratio" value="80"/>
+  <xacro:property name="drum_steps_per_rev" value="${drum_motor_steps_per_rev * drum_gear_ratio}"/>
 
 
   <!-- DRIVETRAIN -->

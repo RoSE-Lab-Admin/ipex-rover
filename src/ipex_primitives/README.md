@@ -24,8 +24,8 @@ Angles are SI (rad, rad/s). Every `*_rad` / `*_rad_s` parameter also accepts `*_
 | `point_turn` | yes (stalls on high-grip ground) | `dpsi_rad` (required, + = left), `omega_rad_s` (0.3) | heading change reached (odometry) | `STALL`, `TIMEOUT` |
 | `arc_turn` | yes | `r_arc_m` (required), `speed_mps` (0.2), `dpsi_rad` (required) | heading change reached | `STALL`, `TIMEOUT` |
 | `set_arm` | yes | `arm` (front), `theta_rad` (required; +45° = top/home, −40° = lowest), `omega_rad_s` (0.5–5.625°/s; default 5.625, restored after the move) | within 0.5° of target (encoder) | `PRECONDITION` (not homed), `INVALID_PARAMS` (limits), `TIMEOUT` |
-| `excavate` | yes (time-based) | `arm` (front), `dig_angle_rad` (−10°) or `d_dig_m` (cut depth, 0–0.079 m; sets the angle), `omega_drum_rad_s` (31.4 = 2000 steps/s; `drum_steps_s`), `speed_mps` (0.05 crawl), `duration_s` (10) | duration elapsed | `PRECONDITION`, `STALL`, `TIMEOUT` |
-| `deposit` | yes (time-based) | `arm` (front), `dump_angle_rad` (45°), `omega_drum_rad_s` (31.4), `speed_mps` (0), `duration_s` (10) | duration elapsed | `PRECONDITION`, `STALL`, `TIMEOUT` |
+| `excavate` | yes (time-based) | `arm` (front), `dig_angle_rad` (−10°) or `d_dig_m` (cut depth, 0–0.079 m; sets the angle), `omega_drum_rad_s` (drum rad/s; default 2000 steps/s = 3.75 drum RPM; also `drum_steps_s`, `drum_rpm`; max 3200 steps/s = 6 drum RPM), `speed_mps` (0.05 crawl), `duration_s` (10) | duration elapsed | `PRECONDITION`, `STALL`, `TIMEOUT` |
+| `deposit` | yes (time-based) | `arm` (front), `dump_angle_rad` (45°), `omega_drum_rad_s` (as excavate), `speed_mps` (0), `duration_s` (10) | duration elapsed | `PRECONDITION`, `STALL`, `TIMEOUT` |
 | `idle` | yes | `t_wait_s` (required) | t_wait elapsed | (only cancel / all stop / override) |
 | `scan_terrain` | **no** | `region` | — | always `UNSUPPORTED` (no perception sensor) |
 | `recharge` | **no** | `soc_target` | — | always `UNSUPPORTED` (no SoC estimate or docking) |

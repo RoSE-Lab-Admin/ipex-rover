@@ -144,6 +144,11 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
     "/ipex/" + arm_name_ + "/homed", rclcpp::QoS(1).transient_local());
   publish_homed(false);
 
+  drum_steps_pub_ = node->create_publisher<std_msgs::msg::Float32>(
+    "/rover/" + arm_name_ + "/drum/steps_s", 10);
+  drum_rpm_pub_ = node->create_publisher<std_msgs::msg::Float32>(
+    "/rover/" + arm_name_ + "/drum/rpm", 10);
+
   all_stop_sub_ = node->create_subscription<std_msgs::msg::Empty>(
     "/ipex/all_stop", 10,
     [this](const std_msgs::msg::Empty &) {stop_requested_ = true;});
@@ -230,6 +235,8 @@ hardware_interface::CallbackReturn IpexArmSystem::on_cleanup(
   goto_sub_.reset();
   speed_sub_.reset();
   homed_pub_.reset();
+  drum_steps_pub_.reset();
+  drum_rpm_pub_.reset();
   port_.reset();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -267,6 +274,15 @@ void IpexArmSystem::handle_line(const std::string & line)
       static_cast<double>(drum_steps_s) * 2.0 * M_PI / drum_steps_per_rev_;
     for (const auto & joint : drum_joints_) {
       set_state(joint + "/velocity", drum_rad_s);
+    }
+
+    // Same value, in the units people read: motor steps/s and drum RPM.
+    if (drum_steps_pub_ && drum_rpm_pub_) {
+      std_msgs::msg::Float32 msg;
+      msg.data = static_cast<float>(drum_steps_s);
+      drum_steps_pub_->publish(msg);
+      msg.data = static_cast<float>(static_cast<double>(drum_steps_s) * 60.0 / drum_steps_per_rev_);
+      drum_rpm_pub_->publish(msg);
     }
 
     if ((homed != 0) != homed_) {

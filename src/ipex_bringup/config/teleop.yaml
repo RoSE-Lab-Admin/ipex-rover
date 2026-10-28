@@ -2,15 +2,15 @@
 #
 # Sticks           : tank drive (left stick Y = left side, right stick Y = right side)
 # D-pad up/down    : max side speed +/- speed_step
-# D-pad left/right : drum speed -/+ drum_speed_step (all drums, continuous)
+# D-pad left/right : drum speed -/+ drum_rpm_step drum RPM (all drums, continuous)
 # LB / LT          : rear arm up / down   (tap = step arm_step_deg, hold = jog)
 # RB / RT          : front arm up / down  (tap = step arm_step_deg, hold = jog)
 #                    Both up+down on one arm = stop; release both to resume.
 # A                : HOME (CAL) all connected arms -- arms MOVE to limit switch
 # B                : ALL STOP (/ipex/all_stop -> STOP to every Teensy; drive + drums zero)
 #
-# Units here: arms in degrees, drums in firmware steps/s. controller.py
-# converts to SI (rad, rad/s) for ros2_control.
+# Units here: arms in degrees, drums in drum RPM (after the 80:1 gearbox).
+# controller.py converts to SI (rad, rad/s at the drum) for ros2_control.
 controller:
   ros__parameters:
     # Axes
@@ -39,10 +39,11 @@ controller:
     speed_step: 0.35        # m/s
     wheel_separation: 0.582 # m, must match diff_drive_controller
 
-    # Drums (steps/s, firmware max 3200)
-    drum_speed_step: 500.0
-    drum_speed_limit: 3000.0
-    drum_steps_per_rev: 400.0  # Matches MOTOR_STEPS_PER_REV in firmware/arm/arm.ino
+    # Drums, in drum RPM. 1 drum RPM = 400 x 80 / 60 = 533 motor steps/s.
+    drum_rpm_step: 1.0               # per D-pad press
+    drum_max_steps_s: 3200.0         # firmware DRUM_MAX_STEPS_S -> max 6.0 drum RPM
+    drum_motor_steps_per_rev: 400.0  # firmware MOTOR_STEPS_PER_REV (arm.ino)
+    drum_gear_ratio: 80.0            # motor : drum; must match drum_gear_ratio in ipex.ros2_control.xacro
     # Directions belong to the physical arm; swapped with the arm Teensy IDs on
     # 2026-10-22 so each physical drum keeps spinning the same way as before.
     front_drum_direction: -1.0

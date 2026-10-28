@@ -25,8 +25,12 @@ from ipex_primitives.params import Param
 
 DEG = math.pi / 180.0
 ARM_CHOICES = ('front', 'rear', 'both')
-DEFAULT_DRUM_RAD_S = 2000.0 * 2.0 * math.pi / 400.0     # 2000 drum steps/s
-DRUM_STEPS_TO_RAD_S = 2.0 * math.pi / 400.0             # drum motor 400 steps/rev
+# Drum speeds are at the DRUM (after the 80:1 gearbox). drum_steps_s is the
+# motor step rate the firmware takes: 400 steps/motor rev x 80 = 32000 steps/drum rev.
+DRUM_STEPS_PER_REV = 400.0 * 80.0
+DRUM_STEPS_TO_RAD_S = 2.0 * math.pi / DRUM_STEPS_PER_REV
+DRUM_RPM_TO_RAD_S = 2.0 * math.pi / 60.0
+DEFAULT_DRUM_RAD_S = 2000.0 * DRUM_STEPS_TO_RAD_S       # 2000 steps/s = 3.75 drum RPM
 
 
 def arms_of(arm):
@@ -138,10 +142,13 @@ def spin_drums(ctx, config, arms, omega_rad_s):
 
 
 def check_drum_speed(config, omega):
-    if abs(omega) > config['drum_max_rad_s']:
+    limit = config['drum_max_rad_s']
+    if abs(omega) > limit * (1 + 1e-9):
         raise PrimitiveFailure(
             Codes.INVALID_PARAMS,
-            f'omega_drum_rad_s {omega:.1f} exceeds {config["drum_max_rad_s"]:.1f} rad/s')
+            f'drum speed {omega / DRUM_RPM_TO_RAD_S:.2f} drum RPM '
+            f'({omega / DRUM_STEPS_TO_RAD_S:.0f} steps/s) exceeds '
+            f'{limit / DRUM_RPM_TO_RAD_S:.2f} drum RPM ({limit / DRUM_STEPS_TO_RAD_S:.0f} steps/s)')
 
 
 # ----------------------------------------------------------------------------
@@ -275,8 +282,8 @@ class Excavate(Primitive):
         Param('arm', str, default='front', choices=ARM_CHOICES),
         Param('dig_angle_rad', float, default=-10 * DEG, unit='rad', help='shoulder angle while digging'),
         Param('omega_drum_rad_s', float, default=DEFAULT_DRUM_RAD_S, unit='rad/s',
-              aliases={'drum_steps_s': DRUM_STEPS_TO_RAD_S},
-              help='drum speed; + = dig direction'),
+              aliases={'drum_steps_s': DRUM_STEPS_TO_RAD_S, 'drum_rpm': DRUM_RPM_TO_RAD_S},
+              help='drum speed at the drum; + = dig direction (also drum_rpm, drum_steps_s)'),
         Param('speed_mps', float, default=0.05, unit='m/s', min=0.0, help='crawl speed'),
         Param('duration_s', float, default=10.0, unit='s', min=0.0, help='dig time'),
         Param('d_dig_m', float, default=None, unit='m', min=0.0,
@@ -338,8 +345,8 @@ class Deposit(Primitive):
         Param('arm', str, default='front', choices=ARM_CHOICES),
         Param('dump_angle_rad', float, default=45 * DEG, unit='rad', help='shoulder angle while dumping'),
         Param('omega_drum_rad_s', float, default=DEFAULT_DRUM_RAD_S, unit='rad/s',
-              aliases={'drum_steps_s': DRUM_STEPS_TO_RAD_S},
-              help='drum speed (magnitude; always the dump direction)'),
+              aliases={'drum_steps_s': DRUM_STEPS_TO_RAD_S, 'drum_rpm': DRUM_RPM_TO_RAD_S},
+              help='drum speed at the drum (magnitude; always dump direction; also drum_rpm, drum_steps_s)'),
         Param('speed_mps', float, default=0.0, unit='m/s', min=0.0, help='forward speed while dumping'),
         Param('duration_s', float, default=10.0, unit='s', min=0.0, help='dump time'),
         Param('h_drop_m', float, default=None, unit='m', unsupported=True,
