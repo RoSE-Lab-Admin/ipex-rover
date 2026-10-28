@@ -25,9 +25,10 @@ primitive_server:
 
     # Drums: primitive omega > 0 means "dig" (= hand controller D-pad left)
     # Signs belong to the physical arm; swapped with the Teensy IDs on 2026-10-22.
-    # Rear flipped 2026-10-28 after the rear drum motor was rewired.
-    drum_dig_sign_front: 1.0
-    drum_dig_sign_rear: 1.0
+    # Rear flipped 2026-10-28 after the rear drum motor was rewired; both flipped
+    # again 2026-10-28 after testbed runs showed the drums digging backwards.
+    drum_dig_sign_front: -1.0
+    drum_dig_sign_rear: -1.0
     drum_max_rad_s: 0.62832       # at the drum: 3200 motor steps/s (firmware cap) / 80:1 = 6.0 drum RPM
     drum_spinup_s: 1.0            # excavate: drums spin this long before the arms lower
     drum_stop_wait_s: 3.0         # on exit: wait (max) for odometry to show the wheels stopped...

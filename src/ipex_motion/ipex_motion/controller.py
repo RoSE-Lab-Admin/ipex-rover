@@ -49,7 +49,7 @@ DEFAULT_PARAMS = {
 
     # Arms: tap (< hold_threshold_s) = one step; hold = jog until release.
     # Limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG).
-    'arm_step_deg': 0.5,
+    'arm_step_deg': 0.25,
     'hold_threshold_s': 0.3,
     'arm_speed_deg_s': 5.625,          # normal arm speed (firmware default)
 
@@ -62,7 +62,7 @@ DEFAULT_PARAMS = {
     # goes back to the defaults below.
     'excavate_settings_file': '~/roxey_data/excavation_mode.yaml',
     'excavate_dig_angle_deg': -25.0,   # default, both arms
-    'excavate_drum_rpm': 3.0,          # default drum RPM, dig direction (= D-pad left)
+    'excavate_drum_rpm': 2.0,          # default drum RPM, dig direction (= D-pad left)
     'excavate_drum_rpm_step': 0.25,    # D-pad left/right
     'excavate_crawl_mps': 0.03,        # default crawl speed
     'excavate_crawl_step_mps': 0.01,   # D-pad up/down
