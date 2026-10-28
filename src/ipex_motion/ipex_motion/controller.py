@@ -68,7 +68,7 @@ DEFAULT_PARAMS = {
     'excavate_crawl_step_mps': 0.01,   # D-pad up/down
     'excavate_crawl_max_mps': 0.10,
     'excavate_steer_max_rad_s': 0.05,  # sticks: steering trim, (right - left) / 2 x this
-    'excavate_arm_step_deg': 0.25,     # tap
+    'excavate_arm_step_deg': 0.5,     # tap
     'excavate_arm_speed_deg_s': 1.0,   # jog / tap speed once digging
     'excavate_spinup_s': 1.0,          # drums spin this long before the arms lower
     'excavate_arm_tolerance_deg': 0.5,
