@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
 import math
+import os
+import time
 
 import rclpy
+import yaml
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
 
 from geometry_msgs.msg import Twist
-from sensor_msgs.msg import Joy
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import JointState, Joy
 from std_msgs.msg import Bool, Empty, Float64, Float64MultiArray, Int8
 
 
@@ -25,6 +29,8 @@ DEFAULT_PARAMS = {
     'dpad_y_axis': 7,
     'home_button': 0,
     'all_stop_button': 1,
+    'excavate_button': 2,      # X
+    'excavate_reset_button': 3,  # Y (mode off): forget saved dig settings
     'left_bumper_button': 4,
     'right_bumper_button': 5,
     'trigger_pressed_threshold': 0.0,
@@ -45,7 +51,35 @@ DEFAULT_PARAMS = {
     # Limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG).
     'arm_step_deg': 0.5,
     'hold_threshold_s': 0.3,
+    'arm_speed_deg_s': 5.625,          # normal arm speed (firmware default)
+
+    # X: excavation mode. Drums spin up, then both arms lower to the dig
+    # angle, then the rover crawls. While in the mode the D-pad, arm buttons
+    # and sticks use the fine increments below. X again (or B) ends it:
+    # arms stay where they are, wheels stop, then drums stop (always last).
+    # Ending with X saves each arm's angle, the drum RPM and the crawl speed
+    # to excavate_settings_file; the next X starts from them. Y (mode off)
+    # goes back to the defaults below.
+    'excavate_settings_file': '~/roxey_data/excavation_mode.yaml',
+    'excavate_dig_angle_deg': -25.0,   # default, both arms
+    'excavate_drum_rpm': 3.0,          # default drum RPM, dig direction (= D-pad left)
+    'excavate_drum_rpm_step': 0.25,    # D-pad left/right
+    'excavate_crawl_mps': 0.03,        # default crawl speed
+    'excavate_crawl_step_mps': 0.01,   # D-pad up/down
+    'excavate_crawl_max_mps': 0.10,
+    'excavate_steer_max_rad_s': 0.05,  # sticks: steering trim, (right - left) / 2 x this
+    'excavate_arm_step_deg': 0.25,     # tap
+    'excavate_arm_speed_deg_s': 1.0,   # jog / tap speed once digging
+    'excavate_spinup_s': 1.0,          # drums spin this long before the arms lower
+    'excavate_arm_tolerance_deg': 0.5,
+    'excavate_lower_timeout_s': 30.0,  # arms not at the dig angle by then -> leave the mode
+    'excavate_stop_wait_s': 3.0,       # on exit: max wait for odometry to show wheels stopped
+    'excavate_stop_delay_s': 0.5,      # then drums keep spinning this long
 }
+
+SHOULDER_JOINTS = {'front': 'front_shoulder_rev', 'rear': 'back_shoulder_rev'}
+STOPPED_MPS = 0.005      # odometry below these = wheels stopped
+STOPPED_RAD_S = 0.01
 
 
 def clamp(value, low, high):
@@ -121,6 +155,24 @@ class Controller(Node):
         self.rear_drum_pub = self.create_publisher(
             Float64MultiArray, '/rear_drum_controller/commands', 10)
 
+        # Excavation mode: arm goto / speed, arm angles and odometry for its
+        # sequencing, and a latched on/off flag so bags can be split by it.
+        self.goto_pub = {
+            arm: self.create_publisher(Float64, f'/ipex/{arm}_arm/goto', 10)
+            for arm in ('front', 'rear')
+        }
+        self.arm_speed_pub = {
+            arm: self.create_publisher(Float64, f'/ipex/{arm}_arm/speed', 10)
+            for arm in ('front', 'rear')
+        }
+        self.create_subscription(JointState, '/joint_states', self.joints_callback, 10)
+        self.create_subscription(
+            Odometry, '/diff_drive_controller/odom',
+            lambda msg: setattr(self, 'odom', (msg, time.monotonic())), 10)
+        self.excavation_pub = self.create_publisher(Bool, '/ipex/excavation_mode', latched)
+        self.excavation_pub.publish(Bool(data=False))
+        self.create_timer(0.05, self.excavation_tick)
+
         # -------------------------------------------------
         # State
         # -------------------------------------------------
@@ -132,11 +184,23 @@ class Controller(Node):
         # Arms only accept presses once homed (reported by hardware).
         self.homed = {'front': False, 'rear': False}
         self.arms = {'front': ArmButtons('front'), 'rear': ArmButtons('rear')}
+        self.arm_angle = {}               # arm -> (deg, monotonic time)
+        self.odom = (None, -1e9)
+
+        # Excavation mode phase: off | spinup | lowering | digging | stopping
+        self.dig_phase = 'off'
+        self.dig_phase_start = 0.0
+        self.crawl_mps = self.p['excavate_crawl_mps']
+        self.wheels_stopped_at = None
+        self.dig_target = {}              # arm -> dig angle (deg) this cycle
+        self.dig_settings = self.load_dig_settings()
 
         # Previous input states for rising-edge detection.
         self.prev = {
             'a': False,
             'b': False,
+            'x': False,
+            'y': False,
             'dpad_up': False, 'dpad_down': False,
             'dpad_left': False, 'dpad_right': False,
         }
@@ -146,7 +210,7 @@ class Controller(Node):
             f'max speed = {self.max_side_speed:.1f} m/s | '
             f'drum speed = {self.drum_rpm:.1f} RPM (step {self.p["drum_rpm_step"]:g}, '
             f'max {self.drum_max_rpm():.1f}) | '
-            f'B = ALL STOP'
+            f'X = excavation mode | B = ALL STOP'
         )
 
     # -----------------------------------------------------
@@ -192,19 +256,52 @@ class Controller(Node):
             self.home_pub.publish(Empty())
             self.get_logger().warn('HOME: calibrating arms (arms will move).')
 
-        self.signal_override_if_active(msg)
+        # X: excavation mode on / off.
+        x_pressed = self.rising('x', self.button(msg, self.p['excavate_button']))
+        if x_pressed:
+            if self.dig_phase == 'off':
+                self.start_excavation()
+            elif self.dig_phase != 'stopping':
+                self.stop_excavation('X pressed', save=True)
+
+        # Y (mode off): back to the default dig settings.
+        if self.rising('y', self.button(msg, self.p['excavate_reset_button'])):
+            if self.dig_phase == 'off':
+                self.dig_settings = self.default_dig_settings()
+                self.save_dig_settings()
+                self.get_logger().warn(
+                    f'Excavation settings reset to defaults: {self.describe_dig_settings()}.')
+            else:
+                self.get_logger().warn('Y ignored: end excavation mode (X) first.')
+
+        self.signal_override_if_active(msg, x_pressed)
 
         self.handle_speed_bounds(msg)
         self.handle_drums(msg)
-        self.handle_arms(msg)
+        # Arm buttons wait until the arms reach the dig angle.
+        if self.dig_phase not in ('spinup', 'lowering'):
+            self.handle_arms(msg)
         self.handle_drive(msg)
 
-    def signal_override_if_active(self, msg):
+    def joints_callback(self, msg):
+        now = time.monotonic()
+        positions = dict(zip(msg.name, msg.position))
+        for arm, joint in SHOULDER_JOINTS.items():
+            if joint in positions and math.isfinite(positions[joint]):
+                self.arm_angle[arm] = (math.degrees(positions[joint]), now)
+
+    def arm_angle_deg(self, arm):
+        value, t = self.arm_angle.get(arm, (None, -1e9))
+        return value if time.monotonic() - t <= 1.0 else None
+
+    def signal_override_if_active(self, msg, x_pressed=False):
         """Publish /ipex/teleop_override (max 2 Hz) while the operator is
-        driving, moving an arm, or changing drum speed. A running motion
-        primitive treats this as a cancel (OPERATOR_OVERRIDE)."""
+        driving, moving an arm, or changing drum speed, and throughout
+        excavation mode. A running motion primitive treats this as a cancel
+        (OPERATOR_OVERRIDE)."""
         threshold = self.p['trigger_pressed_threshold']
         active = (
+            x_pressed or self.dig_phase != 'off' or
             abs(self.axis(msg, self.p['left_y_axis'])) > 0.15 or
             abs(self.axis(msg, self.p['right_y_axis'])) > 0.15 or
             abs(self.axis(msg, self.p['dpad_x_axis'])) > 0.5 or
@@ -236,6 +333,16 @@ class Controller(Node):
 
         # Arms: end any jog and require all arm buttons released before
         # they respond again.
+        self.release_arm_inputs()
+
+        if self.dig_phase != 'off':
+            self.set_arm_speed(self.p['arm_speed_deg_s'])
+            self.set_dig_phase('off')
+
+        self.get_logger().warn('ALL STOP: drive, drums, and arms stopped.')
+
+    def release_arm_inputs(self):
+        """End any jog; arm buttons respond again once all are released."""
         for arm in self.arms.values():
             if arm.jogging:
                 self.jog_pub[arm.name].publish(Int8(data=0))
@@ -244,7 +351,165 @@ class Controller(Node):
             arm.press_dir = 0
             arm.locked = True
 
-        self.get_logger().warn('ALL STOP: drive, drums, and arms stopped.')
+    # -----------------------------------------------------
+    # Excavation mode (X)
+    # -----------------------------------------------------
+    # spinup   drums at the saved drum RPM, rover still, arms still
+    # lowering each arm goes to its saved dig angle, rover still
+    # digging  saved crawl speed; fine D-pad / arm / steering adjustments
+    # stopping wheels stop, then drums stop (drums are always last)
+    #
+    # Saved settings (dig_settings): {front_deg, rear_deg, drum_rpm, crawl_mps},
+    # drum_rpm as a dig-direction magnitude. Written when X ends a dig.
+
+    def default_dig_settings(self):
+        angle = float(self.p['excavate_dig_angle_deg'])
+        return {'front_deg': angle, 'rear_deg': angle,
+                'drum_rpm': abs(float(self.p['excavate_drum_rpm'])),
+                'crawl_mps': float(self.p['excavate_crawl_mps'])}
+
+    def settings_path(self):
+        return os.path.expanduser(self.p['excavate_settings_file'])
+
+    def load_dig_settings(self):
+        settings = self.default_dig_settings()
+        path = self.settings_path()
+        try:
+            with open(path) as f:
+                saved = yaml.safe_load(f) or {}
+            for key in settings:
+                if key in saved:
+                    settings[key] = float(saved[key])
+            self.get_logger().info(
+                f'Excavation settings from {path}: {self.describe_dig_settings(settings)}')
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, TypeError, yaml.YAMLError) as e:
+            self.get_logger().warn(f'Could not read {path} ({e}); using defaults.')
+        return settings
+
+    def save_dig_settings(self):
+        path = self.settings_path()
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as f:
+                f.write('# Excavation mode (X) start settings; written by controller.py\n'
+                        '# when X ends a dig. Y on the controller resets to defaults.\n')
+                yaml.safe_dump({k: round(v, 3) for k, v in self.dig_settings.items()},
+                               f, sort_keys=False)
+        except OSError as e:
+            self.get_logger().error(f'Could not save excavation settings to {path}: {e}')
+
+    def describe_dig_settings(self, s=None):
+        s = s or self.dig_settings
+        return (f'front {s["front_deg"]:.2f} deg, rear {s["rear_deg"]:.2f} deg, '
+                f'drums {s["drum_rpm"]:.2f} RPM, crawl {s["crawl_mps"]:.2f} m/s')
+
+    def set_dig_phase(self, phase):
+        self.dig_phase = phase
+        self.dig_phase_start = time.monotonic()
+        if phase in ('off', 'spinup'):
+            self.excavation_pub.publish(Bool(data=phase != 'off'))
+
+    def set_arm_speed(self, deg_s):
+        for arm in ('front', 'rear'):
+            self.arm_speed_pub[arm].publish(Float64(data=float(deg_s)))
+
+    def start_excavation(self):
+        missing = [a for a in ('front', 'rear') if not self.homed[a]]
+        if missing:
+            self.get_logger().warn(
+                f'Excavation mode: {" and ".join(missing)} arm not homed. Press A to home.')
+            return
+        if any(self.arm_angle_deg(a) is None for a in ('front', 'rear')):
+            self.get_logger().warn('Excavation mode: no arm angle feedback (/joint_states).')
+            return
+
+        s = self.dig_settings
+        drum = clamp(s['drum_rpm'], 0.0, self.drum_max_rpm())
+        if drum <= 0.0:
+            # Never lower the arms onto stopped drums.
+            drum = abs(self.p['excavate_drum_rpm'])
+            self.get_logger().warn(f'Saved drum speed is 0; using the default {drum:g} RPM.')
+
+        self.release_arm_inputs()
+        self.dig_target = {'front': s['front_deg'], 'rear': s['rear_deg']}
+        self.crawl_mps = clamp(s['crawl_mps'], 0.0, self.p['excavate_crawl_max_mps'])
+        self.drum_rpm = -drum     # dig = D-pad left
+        self.publish_drums()
+        self.set_dig_phase('spinup')
+        self.get_logger().warn(
+            f'EXCAVATION MODE: {self.describe_dig_settings()}. Drums spinning up; '
+            f'arms lower next. X = stop (saves settings), B = ALL STOP.')
+
+    def stop_excavation(self, reason, save=False):
+        # Saved only once digging: the arms are at (or tweaked from) the dig angle.
+        if save and self.dig_phase == 'digging':
+            angles = {a: self.arm_angle_deg(a) for a in ('front', 'rear')}
+            for arm, angle in angles.items():
+                if angle is not None:
+                    self.dig_settings[f'{arm}_deg'] = angle
+            if self.drum_rpm < 0.0:     # still digging direction
+                self.dig_settings['drum_rpm'] = -self.drum_rpm
+            self.dig_settings['crawl_mps'] = self.crawl_mps
+            self.save_dig_settings()
+            self.get_logger().warn(f'Saved for the next X: {self.describe_dig_settings()}.')
+
+        # Arms stay where they are (re-target to the current angle if moving).
+        if self.dig_phase == 'lowering':
+            for arm in ('front', 'rear'):
+                angle = self.arm_angle_deg(arm)
+                if angle is not None:
+                    self.goto_pub[arm].publish(Float64(data=angle))
+        self.release_arm_inputs()
+        self.set_arm_speed(self.p['arm_speed_deg_s'])
+        self.cmd_pub.publish(Twist())
+        self.wheels_stopped_at = None
+        self.set_dig_phase('stopping')
+        self.get_logger().warn(f'Excavation mode ending ({reason}): stopping wheels, then drums.')
+
+    def excavation_tick(self):
+        phase = self.dig_phase
+        now = time.monotonic()
+        elapsed = now - self.dig_phase_start
+
+        if phase == 'spinup' and elapsed >= self.p['excavate_spinup_s']:
+            for arm, target in self.dig_target.items():
+                self.goto_pub[arm].publish(Float64(data=float(target)))
+            self.set_dig_phase('lowering')
+            self.get_logger().info(
+                f'Excavation mode: lowering arms to front {self.dig_target["front"]:.2f}, '
+                f'rear {self.dig_target["rear"]:.2f} deg.')
+
+        elif phase == 'lowering':
+            tol = self.p['excavate_arm_tolerance_deg']
+            angles = {a: self.arm_angle_deg(a) for a in self.dig_target}
+            if all(angles[a] is not None and abs(angles[a] - t) <= tol
+                   for a, t in self.dig_target.items()):
+                self.set_arm_speed(self.p['excavate_arm_speed_deg_s'])
+                self.set_dig_phase('digging')
+                self.get_logger().warn(
+                    f'Excavation mode: digging, crawl {self.crawl_mps:.2f} m/s. '
+                    f'D-pad L/R drums +/-{self.p["excavate_drum_rpm_step"]:g} RPM, '
+                    f'U/D crawl +/-{self.p["excavate_crawl_step_mps"]:g} m/s, '
+                    f'arm taps {self.p["excavate_arm_step_deg"]:g} deg.')
+            elif elapsed > self.p['excavate_lower_timeout_s']:
+                self.stop_excavation(
+                    f'arms not at the dig angle after {elapsed:.0f} s')
+
+        elif phase == 'stopping':
+            if self.wheels_stopped_at is None:
+                odom, t = self.odom
+                stopped = (odom is not None and now - t <= 0.5 and
+                           abs(odom.twist.twist.linear.x) < STOPPED_MPS and
+                           abs(odom.twist.twist.angular.z) < STOPPED_RAD_S)
+                if stopped or elapsed >= self.p['excavate_stop_wait_s']:
+                    self.wheels_stopped_at = now
+            elif now - self.wheels_stopped_at >= self.p['excavate_stop_delay_s']:
+                self.drum_rpm = 0.0
+                self.publish_drums()
+                self.set_dig_phase('off')
+                self.get_logger().warn('Excavation mode off: drums stopped, arms holding.')
 
     # -----------------------------------------------------
     # Mapping
@@ -252,6 +517,20 @@ class Controller(Node):
 
     def handle_speed_bounds(self, msg):
         dpad_y = self.axis(msg, self.p['dpad_y_axis'])
+
+        # Excavation mode: D-pad up/down sets the crawl speed instead.
+        if self.dig_phase != 'off':
+            step = self.p['excavate_crawl_step_mps']
+            change = 0.0
+            if self.rising('dpad_up', dpad_y > 0.5):
+                change = step
+            if self.rising('dpad_down', dpad_y < -0.5):
+                change = -step
+            if change:
+                self.crawl_mps = clamp(round(self.crawl_mps + change, 6),
+                                       0.0, self.p['excavate_crawl_max_mps'])
+                self.get_logger().info(f'Excavation crawl: {self.crawl_mps:.2f} m/s')
+            return
 
         # D-pad up: + speed_step
         if self.rising('dpad_up', dpad_y > 0.5):
@@ -273,7 +552,7 @@ class Controller(Node):
         # joy_linux D-pad X: +1 = left, -1 = right
         dpad_x = self.axis(msg, self.p['dpad_x_axis'])
         limit = self.drum_max_rpm()
-        step = self.p['drum_rpm_step']
+        step = self.p['excavate_drum_rpm_step' if self.dig_phase != 'off' else 'drum_rpm_step']
         changed = False
 
         # D-pad right: + drum_rpm_step
@@ -290,7 +569,7 @@ class Controller(Node):
         if changed:
             self.publish_drums()
             self.get_logger().info(
-                f'Drum speed: {self.drum_rpm:.1f} RPM '
+                f'Drum speed: {self.drum_rpm:.2f} RPM '
                 f'({abs(self.drum_rpm) * self.steps_s_per_drum_rpm():.0f} steps/s)')
 
     def steps_s_per_drum_rpm(self):
@@ -389,11 +668,25 @@ class Controller(Node):
                 f'{label} arm not homed; ignoring tap. Press A to home.')
             return
 
-        step = direction * self.p['arm_step_deg']
+        step = direction * self.p[
+            'excavate_arm_step_deg' if self.dig_phase != 'off' else 'arm_step_deg']
         self.step_pub[arm.name].publish(Float64(data=step))
-        self.get_logger().info(f'{label} arm: step {step:+.1f} deg.')
+        self.get_logger().info(f'{label} arm: step {step:+.2f} deg.')
 
     def handle_drive(self, msg):
+        # Excavation mode: still until digging, then fixed crawl with a small
+        # steering trim from the sticks (right - left). Published here, from
+        # /joy, so the crawl stops if the controller goes quiet (cmd_mux timeout).
+        if self.dig_phase != 'off':
+            cmd = Twist()
+            if self.dig_phase == 'digging':
+                trim = (self.axis(msg, self.p['right_y_axis']) -
+                        self.axis(msg, self.p['left_y_axis'])) / 2.0
+                cmd.linear.x = self.crawl_mps
+                cmd.angular.z = trim * self.p['excavate_steer_max_rad_s']
+            self.cmd_pub.publish(cmd)
+            return
+
         # Tank drive
         left_speed = self.axis(msg, self.p['left_y_axis']) * self.max_side_speed
         right_speed = self.axis(msg, self.p['right_y_axis']) * self.max_side_speed

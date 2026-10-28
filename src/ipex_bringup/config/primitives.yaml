@@ -29,7 +29,9 @@ primitive_server:
     drum_dig_sign_front: 1.0
     drum_dig_sign_rear: 1.0
     drum_max_rad_s: 0.62832       # at the drum: 3200 motor steps/s (firmware cap) / 80:1 = 6.0 drum RPM
-    drum_spinup_s: 1.0
+    drum_spinup_s: 1.0            # excavate: drums spin this long before the arms lower
+    drum_stop_wait_s: 3.0         # on exit: wait (max) for odometry to show the wheels stopped...
+    drum_stop_delay_s: 0.5        # ...then this long before the drums stop (drums stop last)
 
     # Energy
     idle_window_s: 2.0            # idle power = average power over this window before start

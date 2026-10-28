@@ -275,7 +275,8 @@ class SetArm(Primitive):
 
 class Excavate(Primitive):
     NAME = 'excavate'
-    SUMMARY = 'Lower arm(s) to a dig angle, spin drums in the dig direction, crawl forward.'
+    SUMMARY = ('Spin drums in the dig direction, lower arm(s) to a dig angle, crawl forward; '
+               'drums stop after the wheels.')
     STOPS_WHEN = 'duration elapsed (m_target needs load cells)'
     FAILS_WHEN = 'not homed, stall, timeout'
     PARAMS = [
@@ -311,9 +312,12 @@ class Excavate(Primitive):
         else:
             angle = math.degrees(self.params['dig_angle_rad'])
 
-        move_arms(ctx, self.config, arms, angle, (0.0, 0.2))
+        # Drums up to speed before the arms lower, so they reach the ground
+        # already spinning. They stop last (server, after the wheels stop).
         spin_drums(ctx, self.config, arms, omega)
+        ctx.feedback(0.0, 'spinning up drums')
         ctx.sleep(self.config['drum_spinup_s'])
+        move_arms(ctx, self.config, arms, angle, (0.0, 0.2))
 
         duration = self.params['duration_s']
         v = min(self.params['speed_mps'], self.config['max_speed_mps'])

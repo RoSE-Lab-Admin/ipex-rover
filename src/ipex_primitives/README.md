@@ -34,6 +34,8 @@ Accepted but not supported yet (return `UNSUPPORTED` if given): `excavate.m_targ
 
 **Cut depth** (flat, level ground): depth = `drum_cut_radius_m` − (`arm_pivot_height_m` + `arm_length_m` · sin θ) = 0.149 − (0.3132 + 0.3786 sin θ) m. Arm length and drum tooth-tip radius from the CAD; the pivot height is the CAD 0.3208 m lowered 7.6 mm to fit a loaded-arm rover measurement (−35° → 53 mm, 2026-10-21), i.e. tire compression / sinkage (will vary with soil and load). The arm with drums reads exactly 45° at home, so the angle reference is good. The drum reaches the ground below about −26°; the deepest cut at the −40° limit is about 7.9 cm. `set_arm` and `excavate` report `cut_depth_m` (negative = clearance above the ground).
 
+**Drum order:** `excavate` spins the drums up (`drum_spinup_s`, 1 s) before the arms lower, so they reach the ground already turning. Drums are always the last thing to stop: on any end except all stop (success, cancel, override, stall, timeout) the server halts the arms, stops the wheels, waits for odometry to show them stopped (max `drum_stop_wait_s`, 3 s) plus `drum_stop_delay_s` (0.5 s), then stops the drums. This applies to `deposit` too.
+
 Drum direction: `omega_drum_rad_s > 0` digs on `excavate` (the hand controller's D-pad-left direction); `deposit` always spins in the dump direction.
 
 ## Failure codes

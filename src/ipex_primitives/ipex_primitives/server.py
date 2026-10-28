@@ -69,6 +69,8 @@ CONFIG_DEFAULTS = {
     'drum_dig_sign_rear': 1.0,
     'drum_max_rad_s': 3200.0 * 2.0 * math.pi / (400.0 * 80.0),   # 3200 steps/s = 6.0 drum RPM
     'drum_spinup_s': 1.0,
+    'drum_stop_wait_s': 3.0,        # max wait for the wheels to stop before drums stop
+    'drum_stop_delay_s': 0.5,       # drums keep spinning this long after the wheels stop
     'idle_window_s': 2.0,
     'energy_settle_s': 0.3,
     'data_dir': '~/roxey_data',
@@ -77,6 +79,8 @@ CONFIG_DEFAULTS = {
 WHEELS = ('front_left', 'front_right', 'back_left', 'back_right')
 SHOULDER_JOINTS = {'front': 'front_shoulder_rev', 'rear': 'back_shoulder_rev'}
 FRESH_S = 0.5
+STOPPED_MPS = 0.005      # odometry below these = wheels stopped
+STOPPED_RAD_S = 0.01
 
 LOG_FIELDS = ['time', 'name', 'params', 'tag', 'success', 'failure_code', 'message',
               'duration_s', 'energy_j', 'energy_above_idle_j', 'idle_power_w',
@@ -101,6 +105,7 @@ class PrimitiveContext:
         self.last_feedback = 0.0
         self.e0 = None
         self.arms_commanded = set()     # arms this primitive sent a goto to
+        self.drums_spinning = set()     # arms whose drums this primitive left spinning
 
     # -------------------------------------------------------------- control
 
@@ -150,6 +155,21 @@ class PrimitiveContext:
     def stop_drive(self):
         self.s.drive_cmd = None
         self.s.drive_pub.publish(Twist())
+
+    def wait_drive_stopped(self):
+        """Wait until odometry shows the wheels stopped (max drum_stop_wait_s),
+        then drum_stop_delay_s more. No cancel/override checks: used on exit
+        so drums stop after the wheels (driving with stopped drums rams them
+        into the ground)."""
+        end = time.monotonic() + self.s.cfg['drum_stop_wait_s']
+        while time.monotonic() < end:
+            odom, t = self.s.odom
+            if odom is not None and time.monotonic() - t <= FRESH_S:
+                twist = odom.twist.twist
+                if abs(twist.linear.x) < STOPPED_MPS and abs(twist.angular.z) < STOPPED_RAD_S:
+                    break
+            time.sleep(0.02)
+        time.sleep(self.s.cfg['drum_stop_delay_s'])
 
     def pose(self):
         odom, t = self.s.odom
@@ -204,6 +224,10 @@ class PrimitiveContext:
         self.s.speed_pub[arm].publish(Float64(data=float(deg_s)))
 
     def drums(self, arm, rad_s):
+        if rad_s:
+            self.drums_spinning.add(arm)
+        else:
+            self.drums_spinning.discard(arm)
         self.s.drum_pub[arm].publish(Float64MultiArray(data=[float(rad_s), float(rad_s)]))
 
 
@@ -345,17 +369,23 @@ class PrimitiveServer(Node):
             code, message = Codes.INTERNAL, f'{type(e).__name__}: {e}'
             self.get_logger().error(traceback.format_exc())
         finally:
-            if prim is not None and ctx is not None:
-                try:
-                    prim.cleanup(ctx)
-                    # ALL STOP already stopped every Teensy; on any other early
-                    # end, stop arm moves this primitive started.
-                    if code and code != Codes.ESTOP:
-                        ctx.halt_arms()
-                except Exception:   # noqa: BLE001
-                    self.get_logger().error('cleanup failed:\n' + traceback.format_exc())
+            # Stop order: arms, then wheels, then drums last.
+            try:
+                # ALL STOP already stopped every Teensy; on any other early
+                # end, stop arm moves this primitive started.
+                if ctx is not None and code and code != Codes.ESTOP:
+                    ctx.halt_arms()
+            except Exception:   # noqa: BLE001
+                self.get_logger().error('halting arms failed:\n' + traceback.format_exc())
             self.drive_cmd = None
             self.drive_pub.publish(Twist())
+            if prim is not None and ctx is not None:
+                try:
+                    if ctx.drums_spinning and code != Codes.ESTOP:
+                        ctx.wait_drive_stopped()
+                    prim.cleanup(ctx)
+                except Exception:   # noqa: BLE001
+                    self.get_logger().error('cleanup failed:\n' + traceback.format_exc())
             self.active_pub.publish(String(data=''))
 
         duration = time.monotonic() - t0
