@@ -57,9 +57,9 @@ DEFAULT_PARAMS = {
     # angle, then the rover crawls. While in the mode the D-pad, arm buttons
     # and sticks use the fine increments below. X again (or B) ends it:
     # arms stay where they are, wheels stop, then drums stop (always last).
-    # Ending with X saves each arm's angle, the drum RPM and the crawl speed
-    # to excavate_settings_file; the next X starts from them. Y (mode off)
-    # goes back to the defaults below.
+    # However the run ends (X, B, or the lowering timeout), each arm's angle,
+    # the drum RPM and the crawl speed are saved to excavate_settings_file;
+    # the next X starts from them. Y (mode off) goes back to the defaults below.
     'excavate_settings_file': '~/roxey_data/excavation_mode.yaml',
     'excavate_dig_angle_deg': -25.0,   # default, both arms
     'excavate_drum_rpm': 2.0,          # default drum RPM, dig direction (= D-pad right)
@@ -262,7 +262,7 @@ class Controller(Node):
             if self.dig_phase == 'off':
                 self.start_excavation()
             elif self.dig_phase != 'stopping':
-                self.stop_excavation('X pressed', save=True)
+                self.stop_excavation('X pressed')
 
         # Y (mode off): back to the default dig settings.
         if self.rising('y', self.button(msg, self.p['excavate_reset_button'])):
@@ -324,6 +324,10 @@ class Controller(Node):
         # drivetrain motors stop).
         self.all_stop_pub.publish(Empty())
 
+        # Excavation run in progress: keep its tuning for the next X.
+        if self.dig_phase not in ('off', 'stopping'):
+            self.save_run_settings()
+
         # Drive: zero twist.
         self.cmd_pub.publish(Twist())
 
@@ -360,7 +364,7 @@ class Controller(Node):
     # stopping wheels stop, then drums stop (drums are always last)
     #
     # Saved settings (dig_settings): {front_deg, rear_deg, drum_rpm, crawl_mps},
-    # drum_rpm as a dig-direction magnitude. Written when X ends a dig.
+    # drum_rpm as a dig-direction magnitude. Written however a run ends.
 
     def default_dig_settings(self):
         angle = float(self.p['excavate_dig_angle_deg'])
@@ -394,7 +398,7 @@ class Controller(Node):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w') as f:
                 f.write('# Excavation mode (X) start settings; written by controller.py\n'
-                        '# when X ends a dig. Y on the controller resets to defaults.\n')
+                        '# when a run ends. Y on the controller resets to defaults.\n')
                 yaml.safe_dump({k: round(v, 3) for k, v in self.dig_settings.items()},
                                f, sort_keys=False)
         except OSError as e:
@@ -440,20 +444,25 @@ class Controller(Node):
         self.set_dig_phase('spinup')
         self.get_logger().warn(
             f'EXCAVATION MODE: {self.describe_dig_settings()}. Drums spinning up; '
-            f'arms lower next. X = stop (saves settings), B = ALL STOP.')
+            f'arms lower next. X or B = stop (both save settings).')
 
-    def stop_excavation(self, reason, save=False):
-        # Saved only once digging: the arms are at (or tweaked from) the dig angle.
-        if save and self.dig_phase == 'digging':
-            angles = {a: self.arm_angle_deg(a) for a in ('front', 'rear')}
-            for arm, angle in angles.items():
+    def save_run_settings(self):
+        """Save the current run's tuning for the next X, whatever phase it is in."""
+        # Arm angles: measured once digging (includes the taps / jogs); before
+        # that the arms haven't reached their targets, so keep the targets.
+        if self.dig_phase == 'digging':
+            for arm in ('front', 'rear'):
+                angle = self.arm_angle_deg(arm)
                 if angle is not None:
                     self.dig_settings[f'{arm}_deg'] = angle
-            if self.drum_rpm > 0.0:     # still digging direction
-                self.dig_settings['drum_rpm'] = self.drum_rpm
-            self.dig_settings['crawl_mps'] = self.crawl_mps
-            self.save_dig_settings()
-            self.get_logger().warn(f'Saved for the next X: {self.describe_dig_settings()}.')
+        if self.drum_rpm > 0.0:     # still digging direction
+            self.dig_settings['drum_rpm'] = self.drum_rpm
+        self.dig_settings['crawl_mps'] = self.crawl_mps
+        self.save_dig_settings()
+        self.get_logger().warn(f'Saved for the next X: {self.describe_dig_settings()}.')
+
+    def stop_excavation(self, reason):
+        self.save_run_settings()
 
         # Arms stay where they are (re-target to the current angle if moving).
         if self.dig_phase == 'lowering':

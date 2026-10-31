@@ -11,7 +11,8 @@
 # X                : EXCAVATION MODE on/off: drums spin up, both arms lower to the dig
 #                    angle, rover crawls; D-pad / arm buttons / sticks become fine
 #                    adjustments. X again: wheels stop, then drums; arms stay put.
-#                    Ending with X saves each arm's angle, drum RPM and crawl speed
+#                    However the run ends (X, B, or a timeout) it saves each arm's
+#                    angle, drum RPM and crawl speed
 #                    (~/roxey_data/excavation_mode.yaml); the next X starts there.
 # Y                : (mode off) reset the saved excavation settings to the defaults.
 #                    Settings (excavate_*) are at the top of ipex_motion/controller.py.
