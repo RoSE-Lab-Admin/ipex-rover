@@ -1,5 +1,6 @@
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, LogInfo
 from launch.launch_description_sources import (
     PythonLaunchDescriptionSource,
     AnyLaunchDescriptionSource,
@@ -132,12 +133,35 @@ def generate_launch_description():
         output='screen',
     )
 
+    # UM7 IMU (src/um7 submodule). Skipped with a message if the driver isn't
+    # built, so the rest of the rover still starts. Settings in config/um7.yaml.
+    try:
+        get_package_share_directory('umx_driver')
+        imu = Node(
+            package='umx_driver',
+            executable='um7_driver',
+            name='um7_driver',
+            parameters=[
+                PathJoinSubstitution([
+                    FindPackageShare('ipex_bringup'),
+                    'config',
+                    'um7.yaml',
+                ])
+            ],
+            output='screen',
+            respawn=True,
+            respawn_delay=5.0,
+        )
+    except PackageNotFoundError:
+        imu = LogInfo(msg='umx_driver not built: no IMU (git submodule update --init, then colcon build)')
+
     return LaunchDescription([
         control,
         foxglove,
         cmd_vel_bridge,
         controller,
         temperature_node,
+        imu,
         energy_meter,
         cmd_mux,
         primitive_server,

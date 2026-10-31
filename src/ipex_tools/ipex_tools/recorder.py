@@ -19,6 +19,7 @@ DEFAULT_TOPICS_REGEX = (
     r'/rover/.*|/ipex/.*|/joint_states|/cmd_vel.*|/joy|'
     r'/diff_drive_controller/odom|/diff_drive_controller/cmd_vel|'
     r'/(front|rear)_(drum|shoulder)_controller/commands|'
+    r'/imu/data|/imu/mag|/imu/temperature|'
     r'/tf|/tf_static|/rosout'
 )
 

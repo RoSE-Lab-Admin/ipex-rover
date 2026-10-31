@@ -1,0 +1,26 @@
+# UM7 IMU on the Pi's GPIO UART (pins 8/10 -> /dev/ttyAMA0), driver umx_driver/um7_driver.
+# Based on the CubeRover setup (dev-fitRoseyRefactored).
+#   mag_updates: true    magnetometer used in the UM7's filter. With it false the UM7's yaw was
+#                        unusable on the bench (quaternion yaw frozen, /imu/rpy drifting
+#                        ~0.9 rad/min). Nothing recalibrates at boot either way (driver source).
+#                        Hard/soft-iron calibration belongs on the UM7, done in the rover.
+#   zero_gyros: true     zeros the gyros every time the driver starts: keep the rover still.
+#   tf_ned_to_enu: false + orientation_in_robot_frame: true
+#                        The driver's ENU mode converts the quaternion wrongly (it reorders
+#                        components, um7_driver.cpp publish_msgs), so a pure turn shows up
+#                        as roll/pitch, and it swaps the magnetometer x/y. Robot-frame mode
+#                        is a correct rotation: body x fwd / y left / z up, world x north /
+#                        y west / z up (yaw 0 = magnetic north, + = counter-clockwise).
+#                        Gyro and accelerometer are identical in both modes.
+# Use /imu/data (quaternion). Don't use /imu/rpy.
+um7_driver:
+  ros__parameters:
+    port: /dev/ttyAMA0
+    baud: 115200
+    frame_id: imu_link
+    mag_updates: true
+    quat_mode: true
+    zero_gyros: true
+    tf_ned_to_enu: false
+    orientation_in_robot_frame: true
+    update_rate: 60

@@ -3,6 +3,7 @@
 
 <xacro:include filename="materials.xacro" />
 <xacro:include filename="ipex.ros2_control.xacro" />
+<xacro:include filename="sensors.xacro" />
 <link name="base_link">
   <inertial>
     <origin xyz="0.0013770985135330112 -0.0005109717055586118 0.260180069047289" rpy="0 0 0"/>
