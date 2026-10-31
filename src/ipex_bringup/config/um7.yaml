@@ -5,6 +5,8 @@
 #                        ~0.9 rad/min). Nothing recalibrates at boot either way (driver source).
 #                        Hard/soft-iron calibration belongs on the UM7, done in the rover.
 #   zero_gyros: true     zeros the gyros every time the driver starts: keep the rover still.
+#   rover.launch.py also calls /imu/reset (zero gyros, reset filter, set magnetic reference)
+#                        10 s after start: without set_mag_ref the yaw drifted ~16 deg/min.
 #   tf_ned_to_enu: false + orientation_in_robot_frame: true
 #                        The driver's ENU mode converts the quaternion wrongly (it reorders
 #                        components, um7_driver.cpp publish_msgs), so a pure turn shows up
