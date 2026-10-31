@@ -54,7 +54,7 @@ CONFIG_DEFAULTS = {
     'arm_speed_deg_s': 5.625,       # default arm speed (firmware default)
     'arm_speed_min_deg_s': 0.5,     # firmware clamps ARM_SPEED to [min, max]
     'arm_speed_max_deg_s': 5.625,
-    'arm_pivot_height_m': 0.3132,   # pivot above ground, loaded (CAD 0.3208 - 7.6 mm sag, fit to rover)
+    'arm_pivot_height_m': 0.3287,   # shoulder pivot above the CAD tire bottom (0.3183 + 0.0104)
     'arm_length_m': 0.3786,         # shoulder pivot to drum axle (ipex.xacro)
     'drum_cut_radius_m': 0.149,     # drum tooth-tip radius (mesh)
     'arm_tolerance_deg': 0.5,

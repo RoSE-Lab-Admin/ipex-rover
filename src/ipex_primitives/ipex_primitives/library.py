@@ -1,7 +1,8 @@
 """Roxey motion primitives (ROS-free logic; hardware access goes through ctx).
 
 Names and parameters follow the primitive spec (drive_straight, point_turn,
-arc_turn, set_arm, excavate, deposit, scan_terrain, recharge, idle).
+arc_turn, set_arm, excavate, deposit, scan_terrain, recharge, idle), plus
+bulldoze (Roxey addition).
 Every primitive returns t and E via the server; run() returns extra outputs.
 
 Context (ctx) API used here (implemented by server.PrimitiveContext):
@@ -38,13 +39,14 @@ def arms_of(arm):
 
 
 # ----------------------------------------------------------------------------
-# cut depth (flat, level ground)
+# cut depth (below the CAD tire bottom plane)
 # ----------------------------------------------------------------------------
-# Drum axle height above ground = pivot height + arm length * sin(theta), with
-# theta the shoulder angle from horizontal (+45 deg = home). The drum cuts
-# drum_cut_radius below its axle. Geometry from ipex.xacro; the cut radius is
-# the drum tooth-tip radius (mesh); the pivot height is the CAD value lowered 7.6 mm to fit a
-# loaded-arm rover measurement (-35 deg -> 53 mm, 2026-10-21): tire compression / sinkage.
+# Drum axle height above the tire bottom = pivot height + arm length * sin(theta),
+# with theta the shoulder angle from horizontal (+45 deg = home). The drum cuts
+# drum_cut_radius below its axle. All CAD: pivot height from ipex.xacro plus the
+# wheel mesh (tire bottom 10.4 mm below base_link), arm length from ipex.xacro,
+# cut radius = drum tooth-tip radius (mesh). No sinkage or compliance: a rover
+# sunk into soft ground cuts deeper than this.
 
 def cut_depth_m(theta_deg, config):
     """Depth of the drum's cut below the surface (negative = clearance above it)."""
@@ -289,7 +291,7 @@ class Excavate(Primitive):
         Param('duration_s', float, default=10.0, unit='s', min=0.0, help='dig time'),
         Param('d_dig_m', float, default=None, unit='m', min=0.0,
               help='cut depth below the surface; sets the dig angle (overrides dig_angle_rad). '
-                   'Flat, level ground; max ~0.079 m at the -40 deg limit'),
+                   'Below the CAD tire bottom (no sinkage); max ~0.064 m at the -40 deg limit'),
         Param('m_target_kg', float, default=None, unit='kg', unsupported=True,
               help='needs arm load cells; use duration_s'),
     ]
@@ -333,7 +335,100 @@ class Excavate(Primitive):
         ctx.stop_drive()
         return {'dig_time_s': round(duration, 2), 'dig_angle_deg': round(angle, 2),
                 'cut_depth_m': round(cut_depth_m(angle, self.config), 4),
-                'note': 'cut depth estimated for flat ground; m_load not measured (no load cells)'}
+                'note': 'cut depth below the CAD tire bottom (no sinkage); m_load not measured '
+                        '(no load cells)'}
+
+    def cleanup(self, ctx):
+        for arm in arms_of(self.params['arm']):
+            ctx.drums(arm, 0.0)
+
+
+class Bulldoze(Primitive):
+    NAME = 'bulldoze'
+    SUMMARY = ('Push material: drums spinning just above the ground, slow forward crawl; '
+               'drums stop after the wheels.')
+    STOPS_WHEN = 'duration elapsed, or distance_m reached (odometry)'
+    FAILS_WHEN = 'not homed, stall, timeout, odometry lost'
+    PARAMS = [
+        Param('arm', str, default='front', choices=ARM_CHOICES),
+        Param('blade_angle_rad', float, default=-26.5 * DEG, unit='rad',
+              help='shoulder angle while pushing (default -26.5 deg = drum ~1 cm above the CAD tire bottom)'),
+        Param('h_clear_m', float, default=None, unit='m',
+              help='drum clearance above the CAD tire bottom (no sinkage); sets the angle '
+                   '(overrides blade_angle_rad); negative skims below it'),
+        Param('omega_drum_rad_s', float, default=DEFAULT_DRUM_RAD_S, unit='rad/s',
+              aliases={'drum_steps_s': DRUM_STEPS_TO_RAD_S, 'drum_rpm': DRUM_RPM_TO_RAD_S},
+              help='drum speed at the drum; + = dig direction, - = dump direction, 0 = drums off '
+                   '(also drum_rpm, drum_steps_s)'),
+        Param('speed_mps', float, default=0.03, unit='m/s', min=0.0, help='push speed (slow)'),
+        Param('duration_s', float, default=10.0, unit='s', min=0.0, help='push time'),
+        Param('distance_m', float, default=None, unit='m', min=0.0,
+              help='stop after this distance (odometry) instead of duration_s'),
+    ]
+
+    def run(self, ctx):
+        arms = arms_of(self.params['arm'])
+        omega = self.params['omega_drum_rad_s']
+        check_drum_speed(self.config, omega)
+
+        clearance = self.params['h_clear_m']
+        if clearance is not None:
+            angle = angle_for_depth_deg(-clearance, self.config)
+            if math.isnan(angle):
+                raise PrimitiveFailure(
+                    Codes.INVALID_PARAMS, f'h_clear_m {clearance:.3f} m is out of the arm\'s reach')
+        else:
+            angle = math.degrees(self.params['blade_angle_rad'])
+
+        v = min(self.params['speed_mps'], self.config['max_speed_mps'])
+        distance = self.params['distance_m']
+        if distance is not None and v <= 0:
+            raise PrimitiveFailure(Codes.INVALID_PARAMS, 'distance_m needs speed_mps > 0')
+
+        # Same order as excavate: drums turning before the arms lower; they
+        # stop last (server, after the wheels stop).
+        if omega:
+            spin_drums(ctx, self.config, arms, omega)
+            ctx.feedback(0.0, 'spinning up drums')
+            ctx.sleep(self.config['drum_spinup_s'])
+        move_arms(ctx, self.config, arms, angle, (0.0, 0.2))
+
+        start = ctx.pose()
+        if distance is not None:
+            if start is None:
+                raise PrimitiveFailure(Codes.PRECONDITION, 'no odometry (/diff_drive_controller/odom)')
+            ctx.set_timeout(distance / v * self.config['drive_timeout_factor']
+                            + self.config['drive_timeout_margin_s'])
+        else:
+            ctx.set_timeout(self.params['duration_s'] + self.config['drive_timeout_margin_s'])
+
+        duration = self.params['duration_s']
+        elapsed = traveled = 0.0
+        while (traveled < distance) if distance is not None else (elapsed < duration):
+            ctx.drive(v, 0.0)
+            ctx.check_stall()
+            ctx.sleep(0.05)
+            elapsed += 0.05
+            pose = ctx.pose()
+            if start is not None and pose is not None:
+                traveled = math.hypot(pose[0] - start[0], pose[1] - start[1])
+            elif distance is not None:
+                raise PrimitiveFailure(Codes.HARDWARE, 'odometry lost')
+            if distance is not None:
+                done = min(traveled / distance, 1.0) if distance else 1.0
+                status = f'pushing {traveled:.2f} / {distance:.2f} m'
+            else:
+                done = min(elapsed / duration, 1.0) if duration else 1.0
+                status = f'pushing {elapsed:.1f} / {duration:.1f} s'
+            ctx.feedback(0.2 + 0.8 * done, status)
+        ctx.stop_drive()
+        out = {'push_time_s': round(elapsed, 2), 'blade_angle_deg': round(angle, 2),
+               'clearance_m': round(-cut_depth_m(angle, self.config), 4),
+               'note': 'clearance above the CAD tire bottom (no sinkage)'}
+        if start is not None:
+            out['distance_m'] = round(traveled, 3)
+            out['odometry'] = 'wheel encoders (slip not seen)'
+        return out
 
     def cleanup(self, ctx):
         for arm in arms_of(self.params['arm']):
@@ -428,4 +523,5 @@ class Recharge(Primitive):
 
 
 CATALOG = {cls.NAME: cls for cls in (
-    DriveStraight, PointTurn, ArcTurn, SetArm, Excavate, Deposit, ScanTerrain, Recharge, Idle)}
+    DriveStraight, PointTurn, ArcTurn, SetArm, Excavate, Bulldoze, Deposit, ScanTerrain,
+    Recharge, Idle)}

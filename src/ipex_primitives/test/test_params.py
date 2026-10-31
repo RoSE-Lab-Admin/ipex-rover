@@ -66,7 +66,7 @@ def test_key_values_and_yaml_parsing():
 
 def test_catalog_has_all_spec_primitives():
     expected = {'drive_straight', 'point_turn', 'arc_turn', 'set_arm', 'excavate',
-                'deposit', 'scan_terrain', 'recharge', 'idle'}
+                'bulldoze', 'deposit', 'scan_terrain', 'recharge', 'idle'}
     assert set(CATALOG) == expected
 
 
@@ -77,6 +77,7 @@ def test_every_primitive_spec_resolves_with_minimal_params():
         'arc_turn': {'r_arc_m': 1.0, 'dpsi_deg': 45},
         'set_arm': {'theta_deg': 0},
         'excavate': {},
+        'bulldoze': {},
         'deposit': {},
         'scan_terrain': {},
         'recharge': {},
