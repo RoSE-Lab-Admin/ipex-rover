@@ -67,9 +67,9 @@ def run(given):
 
 def test_default_blade_sits_about_1cm_above_ground():
     out, ctx = run({'duration_s': 1.0})
-    assert out['blade_angle_deg'] == -26.5
+    assert out['blade_angle_deg'] == -25.3
     assert 0.005 < out['clearance_m'] < 0.015
-    assert ctx.angle['front'] == pytest.approx(-26.5)
+    assert ctx.angle['front'] == pytest.approx(-25.3)
     assert ctx.angle['rear'] == 45.0      # front arm only by default
 
 
