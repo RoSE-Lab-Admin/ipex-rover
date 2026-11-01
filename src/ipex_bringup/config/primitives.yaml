@@ -8,9 +8,10 @@ primitive_server:
     arm_speed_min_deg_s: 0.5      # must match firmware ARM_SPEED_MIN_DEG_S
     arm_speed_max_deg_s: 5.625    # must match firmware ARM_SPEED_MAX_DEG_S
 
-    # Cut depth below the CAD tire bottom plane (no sinkage):
+    # Cut depth below the tire tread plane (the rubber between the grousers; no sinkage):
     #   depth = drum_cut_radius - (pivot_height + length*sin(angle))
-    arm_pivot_height_m: 0.3287    # shoulder pivot above the tire bottom: 0.3183 above base_link + 0.0104 (wheel mesh) (CAD)
+    arm_pivot_height_m: 0.3208    # pivot above the tread: 0.3183 above base_link + 0.0025 (axle 0.1525, tread radius 0.155).
+                                  # Rover check 2026-10-31: -28.7 deg = 1 cm below the tread, measured
     arm_length_m: 0.3786          # shoulder pivot to drum axle (ipex.xacro, both arms)
     drum_cut_radius_m: 0.149      # drum tooth-tip radius (drum meshes)
     arm_tolerance_deg: 0.5        # "reached" when within this of the target

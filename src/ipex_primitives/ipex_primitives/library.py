@@ -39,14 +39,15 @@ def arms_of(arm):
 
 
 # ----------------------------------------------------------------------------
-# cut depth (below the CAD tire bottom plane)
+# cut depth (below the tire tread plane)
 # ----------------------------------------------------------------------------
-# Drum axle height above the tire bottom = pivot height + arm length * sin(theta),
+# Drum axle height above the tread = pivot height + arm length * sin(theta),
 # with theta the shoulder angle from horizontal (+45 deg = home). The drum cuts
-# drum_cut_radius below its axle. All CAD: pivot height from ipex.xacro plus the
-# wheel mesh (tire bottom 10.4 mm below base_link), arm length from ipex.xacro,
-# cut radius = drum tooth-tip radius (mesh). No sinkage or compliance: a rover
-# sunk into soft ground cuts deeper than this.
+# drum_cut_radius below its axle. Geometry from the CAD: pivot 0.3183 m above
+# base_link + 0.0025 m (axle 0.1525 m, tread radius 0.155 m; the grouser tips
+# reach 8 mm further), arm length from ipex.xacro, cut radius = drum tooth-tip
+# radius (mesh). Checked on the rover 2026-10-31: -28.7 deg measured 1 cm below
+# the tread. No sinkage or compliance: a rover sunk into soft ground cuts deeper.
 
 def cut_depth_m(theta_deg, config):
     """Depth of the drum's cut below the surface (negative = clearance above it)."""
@@ -291,7 +292,7 @@ class Excavate(Primitive):
         Param('duration_s', float, default=10.0, unit='s', min=0.0, help='dig time'),
         Param('d_dig_m', float, default=None, unit='m', min=0.0,
               help='cut depth below the surface; sets the dig angle (overrides dig_angle_rad). '
-                   'Below the CAD tire bottom (no sinkage); max ~0.064 m at the -40 deg limit'),
+                   'Below the tire tread (no sinkage); max ~0.072 m at the -40 deg limit'),
         Param('m_target_kg', float, default=None, unit='kg', unsupported=True,
               help='needs arm load cells; use duration_s'),
     ]
@@ -335,7 +336,7 @@ class Excavate(Primitive):
         ctx.stop_drive()
         return {'dig_time_s': round(duration, 2), 'dig_angle_deg': round(angle, 2),
                 'cut_depth_m': round(cut_depth_m(angle, self.config), 4),
-                'note': 'cut depth below the CAD tire bottom (no sinkage); m_load not measured '
+                'note': 'cut depth below the tire tread (no sinkage); m_load not measured '
                         '(no load cells)'}
 
     def cleanup(self, ctx):
@@ -351,10 +352,10 @@ class Bulldoze(Primitive):
     FAILS_WHEN = 'not homed, stall, timeout, odometry lost'
     PARAMS = [
         Param('arm', str, default='front', choices=ARM_CHOICES),
-        Param('blade_angle_rad', float, default=-26.5 * DEG, unit='rad',
-              help='shoulder angle while pushing (default -26.5 deg = drum ~1 cm above the CAD tire bottom)'),
+        Param('blade_angle_rad', float, default=-25.3 * DEG, unit='rad',
+              help='shoulder angle while pushing (default -25.3 deg = drum ~1 cm above the tire tread)'),
         Param('h_clear_m', float, default=None, unit='m',
-              help='drum clearance above the CAD tire bottom (no sinkage); sets the angle '
+              help='drum clearance above the tire tread (no sinkage); sets the angle '
                    '(overrides blade_angle_rad); negative skims below it'),
         Param('omega_drum_rad_s', float, default=DEFAULT_DRUM_RAD_S, unit='rad/s',
               aliases={'drum_steps_s': DRUM_STEPS_TO_RAD_S, 'drum_rpm': DRUM_RPM_TO_RAD_S},
@@ -424,7 +425,7 @@ class Bulldoze(Primitive):
         ctx.stop_drive()
         out = {'push_time_s': round(elapsed, 2), 'blade_angle_deg': round(angle, 2),
                'clearance_m': round(-cut_depth_m(angle, self.config), 4),
-               'note': 'clearance above the CAD tire bottom (no sinkage)'}
+               'note': 'clearance above the tire tread (no sinkage)'}
         if start is not None:
             out['distance_m'] = round(traveled, 3)
             out['odometry'] = 'wheel encoders (slip not seen)'
