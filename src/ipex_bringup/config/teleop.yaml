@@ -62,5 +62,5 @@ controller:
 
     # Arms. Angle limits are enforced on the arm Teensy (ARM_MIN_DEG / ARM_MAX_DEG
     # in firmware/arm/arm.ino), so they are not duplicated here.
-    arm_step_deg: 2.0       # Tap step (deg)
+    arm_step_deg: 1.0       # Tap step (deg); X mode uses excavate_arm_step_deg (0.5)
     hold_threshold_s: 0.3   # Held longer than this = jog; shorter = tap

@@ -82,7 +82,9 @@
   </ros2_control>
 
 
-  <!-- ARMS: shoulder (position, rad) + two drums (velocity, rad/s, in sync) -->
+  <!-- ARMS: shoulder (position, rad) + two drums (velocity, rad/s, in sync).
+       Drum position is integrated from the Teensy's reported speed (no drum
+       encoders), for TF / RViz only. Without it /joint_states carries NaN. -->
 
   <xacro:macro name="ipex_arm" params="block_name arm_name prefix device">
     <ros2_control name="${block_name}" type="system">
@@ -103,11 +105,13 @@
 
       <joint name="${prefix}_left_drum_rev">
         <command_interface name="velocity"/>
+        <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="${prefix}_right_drum_rev">
         <command_interface name="velocity"/>
+        <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
 
