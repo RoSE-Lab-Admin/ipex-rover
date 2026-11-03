@@ -1,11 +1,22 @@
 <?xml version="1.0" ?>
+<!-- Roxey geometry: IPEx CAD export V1.3 (with joints, received 2026-11-03),
+     ported from "New URDF/IPEx_URDF_Export_V1.3_description". Changes from the
+     export: package paths, includes (ros2_control + sensor frames instead of
+     .trans/.gazebo), joint "back_right_wheel_rev (1)" renamed, and each
+     shoulder joint pitched so position 0 = drum axle level with the pivot
+     (the export has the arms raised: front 31.91 deg, rear 28.72 deg), and
+     IMU_rigid turned 180 deg about z: the CAD avionics box is rotated, the
+     real IMU is front-right, not rear-left.
+     base_link: x forward (front arm end), y left, z up; origin midway
+     between the axles, 0.1525 m below them (2.5 mm above the tire tread). -->
 <robot name="full" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
 <xacro:include filename="materials.xacro" />
 <xacro:include filename="ipex.ros2_control.xacro" />
+<xacro:include filename="sensors.xacro" />
 <link name="base_link">
   <inertial>
-    <origin xyz="0.0013770985135330112 -0.0005109717055586118 0.260180069047289" rpy="0 0 0"/>
+    <origin xyz="-0.0003729014864667791 -0.000510971705558936 0.2601800690472895" rpy="0 0 0"/>
     <mass value="25.228499059925024"/>
     <inertia ixx="0.495116" iyy="1.249837" izz="1.458763" ixy="0.03918" iyz="-0.001849" ixz="-5e-06"/>
   </inertial>
@@ -26,82 +37,40 @@
 
 <link name="front_arm_1">
   <inertial>
-    <origin xyz="0.22423095305676405 -0.026103861484428812 0.11965111345428925" rpy="0 0 0"/>
+    <origin xyz="0.2157568971770024 -0.026103861484429437 0.1343311831961635" rpy="0 0 0"/>
     <mass value="3.901137776211061"/>
-    <inertia ixx="0.03629" iyy="0.115235" izz="0.098787" ixy="-0.0" iyz="0.0" ixz="-0.046625"/>
+    <inertia ixx="0.04277" iyy="0.115235" izz="0.092308" ixy="-0.0" iyz="0.0" ixz="-0.050367"/>
   </inertial>
   <visual>
-    <origin xyz="-0.242624 -0.026125 -0.318256" rpy="0 0 0"/>
+    <origin xyz="-0.240874 -0.026125 -0.318256" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/front_arm_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.242624 -0.026125 -0.318256" rpy="0 0 0"/>
+    <origin xyz="-0.240874 -0.026125 -0.318256" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/front_arm_1.stl" scale="0.001 0.001 0.001"/>
-    </geometry>
-  </collision>
-</link>
-
-<link name="front_left_drum_1">
-  <inertial>
-    <origin xyz="4.3542858297884734e-06 0.13288480805507427 -4.3060694882024464e-07" rpy="0 0 0"/>
-    <mass value="4.820532473358466"/>
-    <inertia ixx="0.063429" iyy="0.059048" izz="0.064404" ixy="-0.0" iyz="-1e-06" ixz="0.000571"/>
-  </inertial>
-  <visual>
-    <origin xyz="-0.576645 -0.111121 -0.496492" rpy="0 0 0"/>
-    <geometry>
-      <mesh filename="package://ipex_description/meshes/front_left_drum_1.stl" scale="0.001 0.001 0.001"/>
-    </geometry>
-    <material name="silver"/>
-  </visual>
-  <collision>
-    <origin xyz="-0.576645 -0.111121 -0.496492" rpy="0 0 0"/>
-    <geometry>
-      <mesh filename="package://ipex_description/meshes/front_left_drum_1.stl" scale="0.001 0.001 0.001"/>
-    </geometry>
-  </collision>
-</link>
-
-<link name="front_right_drum_1">
-  <inertial>
-    <origin xyz="2.7999541786227766e-06 -0.13288449875634462 -3.821955602945071e-06" rpy="0 0 0"/>
-    <mass value="4.820532473358465"/>
-    <inertia ixx="0.064127" iyy="0.059048" izz="0.063705" ixy="-0.0" iyz="-1e-06" ixz="0.000413"/>
-  </inertial>
-  <visual>
-    <origin xyz="-0.576645 0.111079 -0.496492" rpy="0 0 0"/>
-    <geometry>
-      <mesh filename="package://ipex_description/meshes/front_right_drum_1.stl" scale="0.001 0.001 0.001"/>
-    </geometry>
-    <material name="silver"/>
-  </visual>
-  <collision>
-    <origin xyz="-0.576645 0.111079 -0.496492" rpy="0 0 0"/>
-    <geometry>
-      <mesh filename="package://ipex_description/meshes/front_right_drum_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
 
 <link name="front_left_wheel_1">
   <inertial>
-    <origin xyz="-5.938789678361367e-07 -0.004096349634976293 1.778442677513592e-06" rpy="0 0 0"/>
+    <origin xyz="-1.6663910233638557e-06 -0.004096349635894725 1.1989605541717907e-06" rpy="0 0 0"/>
     <mass value="1.3452324308988097"/>
     <inertia ixx="0.014221" iyy="0.0242" izz="0.014221" ixy="-0.0" iyz="0.0" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.228874 -0.29102 -0.152506" rpy="0 0 0"/>
+    <origin xyz="-0.227124 -0.29102 -0.152506" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/front_left_wheel_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.228874 -0.29102 -0.152506" rpy="0 0 0"/>
+    <origin xyz="-0.227124 -0.29102 -0.152506" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/front_left_wheel_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -110,19 +79,19 @@
 
 <link name="back_left_wheel_1">
   <inertial>
-    <origin xyz="-7.694644749978163e-07 -0.004096349635909546 1.7356982220106953e-06" rpy="0 0 0"/>
+    <origin xyz="-1.6533109115091094e-07 -0.004096349635910157 1.8172235605740106e-06" rpy="0 0 0"/>
     <mass value="1.3452324308988097"/>
     <inertia ixx="0.014221" iyy="0.0242" izz="0.014221" ixy="-0.0" iyz="0.0" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="0.226126 -0.29102 -0.152506" rpy="0 0 0"/>
+    <origin xyz="0.227876 -0.29102 -0.152506" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/back_left_wheel_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="0.226126 -0.29102 -0.152506" rpy="0 0 0"/>
+    <origin xyz="0.227876 -0.29102 -0.152506" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/back_left_wheel_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -131,19 +100,19 @@
 
 <link name="front_right_wheel_1">
   <inertial>
-    <origin xyz="3.7944567157777165e-07 0.004095826667031455 1.735698216931425e-06" rpy="0 0 0"/>
+    <origin xyz="3.794456718553274e-07 0.004095826667031288 1.7356982180694036e-06" rpy="0 0 0"/>
     <mass value="1.3452324308988097"/>
     <inertia ixx="0.014221" iyy="0.0242" izz="0.014221" ixy="-0.0" iyz="-0.0" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.228874 0.29098 -0.152506" rpy="0 0 0"/>
+    <origin xyz="-0.227124 0.29098 -0.152506" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/front_right_wheel_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.228874 0.29098 -0.152506" rpy="0 0 0"/>
+    <origin xyz="-0.227124 0.29098 -0.152506" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/front_right_wheel_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -152,19 +121,19 @@
 
 <link name="back_right_wheel_1">
   <inertial>
-    <origin xyz="3.7944569025727404e-07 0.004095826667023517 1.7356982156546685e-06" rpy="0 0 0"/>
+    <origin xyz="3.794456903127852e-07 0.0040958266670229615 1.73569821620978e-06" rpy="0 0 0"/>
     <mass value="1.3452324308988097"/>
     <inertia ixx="0.014221" iyy="0.0242" izz="0.014221" ixy="-0.0" iyz="-0.0" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="0.226126 0.29098 -0.152506" rpy="0 0 0"/>
+    <origin xyz="0.227876 0.29098 -0.152506" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/back_right_wheel_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="0.226126 0.29098 -0.152506" rpy="0 0 0"/>
+    <origin xyz="0.227876 0.29098 -0.152506" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/back_right_wheel_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -173,135 +142,258 @@
 
 <link name="back_arm_1">
   <inertial>
-    <origin xyz="-0.1784390377747104 0.026103138515543557 0.1809849342241205" rpy="0 0 0"/>
+    <origin xyz="-0.22290144913505666 0.026103138515542076 0.1221107138317446" rpy="0 0 0"/>
     <mass value="3.901137776211061"/>
-    <inertia ixx="0.068334" iyy="0.115235" izz="0.066743" ixy="-0.0" iyz="-0.0" ixz="0.056122"/>
+    <inertia ixx="0.037324" iyy="0.115235" izz="0.097754" ixy="-0.0" iyz="-0.0" ixz="0.047301"/>
   </inertial>
   <visual>
-    <origin xyz="0.239876 0.026082 -0.318256" rpy="0 0 0"/>
+    <origin xyz="0.241626 0.026082 -0.318256" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/back_arm_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="0.239876 0.026082 -0.318256" rpy="0 0 0"/>
+    <origin xyz="0.241626 0.026082 -0.318256" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/back_arm_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
 
-<link name="back_left_drum_1">
+<link name="front_left_drum_1">
   <inertial>
-    <origin xyz="-4.246017386133616e-06 0.13288480805503528 7.685113212474448e-07" rpy="0 0 0"/>
-    <mass value="4.820532473358466"/>
-    <inertia ixx="0.063545" iyy="0.059048" izz="0.064287" ixy="0.0" iyz="1e-06" ixz="0.000653"/>
+    <origin xyz="4.523735083195035e-07 0.13246857940804094 -4.883096329511005e-07" rpy="0 0 0"/>
+    <mass value="4.566656886471865"/>
+    <inertia ixx="0.061233" iyy="0.055678" izz="0.060223" ixy="0.0" iyz="-0.0" ixz="0.000125"/>
   </inertial>
   <visual>
-    <origin xyz="0.505684 -0.111121 -0.587856" rpy="0 0 0"/>
+    <origin xyz="-0.562271 -0.111121 -0.51836" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="package://ipex_description/meshes/back_left_drum_1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://ipex_description/meshes/front_left_drum_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="0.505684 -0.111121 -0.587856" rpy="0 0 0"/>
+    <origin xyz="-0.562271 -0.111121 -0.51836" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="package://ipex_description/meshes/back_left_drum_1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://ipex_description/meshes/front_left_drum_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
 
 <link name="back_right_drum_1">
   <inertial>
-    <origin xyz="5.133277008573245e-06 -0.13288449875638353 -2.7085287945816106e-07" rpy="0 0 0"/>
-    <mass value="4.820532473358465"/>
-    <inertia ixx="0.063527" iyy="0.059048" izz="0.064306" ixy="0.0" iyz="-1e-06" ixz="0.000253"/>
+    <origin xyz="1.9189295819010965e-08 -0.13246830237692797 -4.326798446196989e-07" rpy="0 0 0"/>
+    <mass value="4.566656886471865"/>
+    <inertia ixx="0.060209" iyy="0.055678" izz="0.061246" ixy="0.0" iyz="-0.0" ixz="4.3e-05"/>
   </inertial>
   <visual>
-    <origin xyz="0.505684 0.111079 -0.587856" rpy="0 0 0"/>
+    <origin xyz="0.573666 0.111079 -0.500156" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/back_right_drum_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="0.505684 0.111079 -0.587856" rpy="0 0 0"/>
+    <origin xyz="0.573666 0.111079 -0.500156" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://ipex_description/meshes/back_right_drum_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
 
+<link name="front_right_drum_1">
+  <inertial>
+    <origin xyz="4.523735219752467e-07 -0.1324683020928677 -4.88309639723461e-07" rpy="0 0 0"/>
+    <mass value="4.566656879750752"/>
+    <inertia ixx="0.060027" iyy="0.055678" izz="0.061428" ixy="-0.0" iyz="0.0" ixz="0.000344"/>
+  </inertial>
+  <visual>
+    <origin xyz="-0.562271 0.111079 -0.51836" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/front_right_drum_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="-0.562271 0.111079 -0.51836" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/front_right_drum_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="back_left_drum_1">
+  <inertial>
+    <origin xyz="1.9189277833397966e-08 0.1324685791239804 -4.3267984239925283e-07" rpy="0 0 0"/>
+    <mass value="4.566656879750752"/>
+    <inertia ixx="0.061505" iyy="0.055678" izz="0.05995" ixy="0.0" iyz="-0.0" ixz="-6.5e-05"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.573666 -0.111121 -0.500156" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/back_left_drum_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.573666 -0.111121 -0.500156" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/back_left_drum_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="D435_camera_rear_1">
+  <inertial>
+    <origin xyz="-0.032428732599498244 0.11100308821916954 0.012471731298173527" rpy="0 0 0"/>
+    <mass value="0.3586644704691069"/>
+    <inertia ixx="0.000216" iyy="3.2e-05" izz="0.000219" ixy="3e-06" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.250376 -2e-05 -0.188286" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/D435_camera_rear_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.250376 -2e-05 -0.188286" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/D435_camera_rear_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="D435_camera_front_1">
+  <inertial>
+    <origin xyz="0.03242834258070021 -0.11100361118800384 0.012471731298166672" rpy="0 0 0"/>
+    <mass value="0.3586644704691069"/>
+    <inertia ixx="0.000216" iyy="3.2e-05" izz="0.000219" ixy="3e-06" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="-0.249624 -2e-05 -0.188286" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/D435_camera_front_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="-0.249624 -2e-05 -0.188286" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/D435_camera_front_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="IMU_1">
+  <inertial>
+    <origin xyz="0.044999804990609814 4.2926681335930805e-07 -0.0032133420393165024" rpy="0 0 0"/>
+    <mass value="0.009767547930448001"/>
+    <inertia ixx="1e-06" iyy="1e-06" izz="1e-06" ixy="0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.100376 -0.090602 -0.378256" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/IMU_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.100376 -0.090602 -0.378256" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://ipex_description/meshes/IMU_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
 <joint name="front_shoulder_rev" type="continuous">
-  <origin xyz="0.242624 0.026125 0.318256" rpy="0 0 0"/>
+  <origin xyz="0.240874 0.026125 0.318256" rpy="0 0.556877 0"/>
   <parent link="base_link"/>
   <child link="front_arm_1"/>
   <axis xyz="0.0 -1.0 -0.0"/>
 </joint>
 
-<joint name="front_left_drum_rev" type="continuous">
-  <origin xyz="0.334021 0.084996 0.178236" rpy="0 0 0"/>
-  <parent link="front_arm_1"/>
-  <child link="front_left_drum_1"/>
-  <axis xyz="-0.0 1.0 0.0"/>
-</joint>
-
-<joint name="front_right_drum_rev" type="continuous">
-  <origin xyz="0.334021 -0.137204 0.178236" rpy="0 0 0"/>
-  <parent link="front_arm_1"/>
-  <child link="front_right_drum_1"/>
-  <axis xyz="0.0 -1.0 -0.0"/>
-</joint>
-
 <joint name="front_left_wheel_rev" type="continuous">
-  <origin xyz="0.228874 0.29102 0.152506" rpy="0 0 0"/>
+  <origin xyz="0.227124 0.29102 0.152506" rpy="0 0 0"/>
   <parent link="base_link"/>
   <child link="front_left_wheel_1"/>
   <axis xyz="-0.0 1.0 0.0"/>
 </joint>
 
 <joint name="back_left_wheel_rev" type="continuous">
-  <origin xyz="-0.226126 0.29102 0.152506" rpy="0 0 0"/>
+  <origin xyz="-0.227876 0.29102 0.152506" rpy="0 0 0"/>
   <parent link="base_link"/>
   <child link="back_left_wheel_1"/>
   <axis xyz="-0.0 1.0 0.0"/>
 </joint>
 
 <joint name="front_right_wheel_rev" type="continuous">
-  <origin xyz="0.228874 -0.29098 0.152506" rpy="0 0 0"/>
+  <origin xyz="0.227124 -0.29098 0.152506" rpy="0 0 0"/>
   <parent link="base_link"/>
   <child link="front_right_wheel_1"/>
   <axis xyz="0.0 -1.0 -0.0"/>
 </joint>
 
 <joint name="back_right_wheel_rev" type="continuous">
-  <origin xyz="-0.226126 -0.29098 0.152506" rpy="0 0 0"/>
+  <origin xyz="-0.227876 -0.29098 0.152506" rpy="0 0 0"/>
   <parent link="base_link"/>
   <child link="back_right_wheel_1"/>
   <axis xyz="0.0 -1.0 -0.0"/>
 </joint>
 
 <joint name="back_shoulder_rev" type="continuous">
-  <origin xyz="-0.239876 -0.026082 0.318256" rpy="0 0 0"/>
+  <origin xyz="-0.241626 -0.026082 0.318256" rpy="0 -0.501172 0"/>
   <parent link="base_link"/>
   <child link="back_arm_1"/>
   <axis xyz="-0.0 1.0 0.0"/>
 </joint>
 
+<joint name="front_left_drum_rev" type="continuous">
+  <origin xyz="0.321397 0.084996 0.200104" rpy="0 0 0"/>
+  <parent link="front_arm_1"/>
+  <child link="front_left_drum_1"/>
+  <axis xyz="-0.0 1.0 0.0"/>
+</joint>
+
+<joint name="back_right_drum_rev" type="continuous">
+  <origin xyz="-0.33204 -0.084997 0.1819" rpy="0 0 0"/>
+  <parent link="back_arm_1"/>
+  <child link="back_right_drum_1"/>
+  <axis xyz="0.0 -1.0 -0.0"/>
+</joint>
+
+<joint name="front_right_drum_rev" type="continuous">
+  <origin xyz="0.321397 -0.137204 0.200104" rpy="0 0 0"/>
+  <parent link="front_arm_1"/>
+  <child link="front_right_drum_1"/>
+  <axis xyz="0.0 -1.0 -0.0"/>
+</joint>
+
 <joint name="back_left_drum_rev" type="continuous">
-  <origin xyz="-0.265808 0.137203 0.2696" rpy="0 0 0"/>
+  <origin xyz="-0.33204 0.137203 0.1819" rpy="0 0 0"/>
   <parent link="back_arm_1"/>
   <child link="back_left_drum_1"/>
   <axis xyz="-0.0 1.0 0.0"/>
 </joint>
 
-<joint name="back_right_drum_rev" type="continuous">
-  <origin xyz="-0.265808 -0.084997 0.2696" rpy="0 0 0"/>
-  <parent link="back_arm_1"/>
-  <child link="back_right_drum_1"/>
-  <axis xyz="0.0 -1.0 -0.0"/>
+<joint name="rear_cam_rigid" type="fixed">
+  <origin xyz="-0.250376 2e-05 0.188286" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="D435_camera_rear_1"/>
+</joint>
+
+<joint name="front_cam_rigid" type="fixed">
+  <origin xyz="0.249624 2e-05 0.188286" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="D435_camera_front_1"/>
+</joint>
+
+<joint name="IMU_rigid" type="fixed">
+  <origin xyz="0.100376 -0.090602 0.378256" rpy="0 0 3.141593"/>
+  <parent link="base_link"/>
+  <child link="IMU_1"/>
 </joint>
 
 </robot>
