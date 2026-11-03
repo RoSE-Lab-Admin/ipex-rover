@@ -10,13 +10,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "action/Primitive.action"
 
-  "action/DriveStraight.action"
-  "action/SetArmAngles.action"
-  "action/Excavate.action"
-  "action/Deposit.action"
-
-  "srv/SetDrumSpeeds.srv"
-
   DEPENDENCIES std_msgs
 )
 

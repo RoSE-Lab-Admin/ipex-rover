@@ -46,4 +46,4 @@ Libraries: `Encoder`, `AccelStepper` (both ship with Teensyduino).
 - Homing timeout (add once full-travel time is measured).
 - Closed-loop arm control from the encoder.
 
-Original sketch: `legacy/sketch_sep22_da_integration.ino.orig`.
+Original sketch: `sketch_sep22_da_integration` (removed 2026-11-03; in git history as `firmware/arm/legacy/sketch_sep22_da_integration.ino.orig`).

@@ -7,7 +7,7 @@
 // =============================================================================
 // IPEX ARM TEENSY (front and rear arm run the same firmware)
 //
-// Based on sketch_sep22_da_integration (see legacy/). Movement sequence is
+// Based on sketch_sep22_da_integration (in git history). Movement sequence is
 // the original one:
 //   release brake (200 ms) -> step both motors at 800 us half-period
 //   -> settle (50 ms) -> engage brake (200 ms)
