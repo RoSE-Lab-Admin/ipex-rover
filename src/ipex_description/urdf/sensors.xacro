@@ -3,8 +3,8 @@
      (IMU_1, D435_camera_front_1, D435_camera_rear_1). Offsets are the mesh box
      centers in those links (V1.3 export, 2026-11-03), so the frames follow the
      CAD when it is re-exported. In base_link: IMU (0.055, -0.091, 0.375) =
-     front-right of center (IMU_1 is turned 180 deg in ipex.xacro: the CAD
-     avionics box is rotated); front camera (0.282, -0.112, 0.201) = front-right;
+     front-right of center (IMU_1 is turned 180 deg in ipex.xacro: the avionics
+     box is installed turned around compared with the CAD); front camera (0.282, -0.112, 0.201) = front-right;
      rear camera (-0.283, 0.112, 0.201) = rear-left. -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
