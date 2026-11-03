@@ -319,7 +319,7 @@ void IpexArmSystem::handle_line(const std::string & line)
 
 
 hardware_interface::return_type IpexArmSystem::read(
-  const rclcpp::Time &, const rclcpp::Duration &)
+  const rclcpp::Time &, const rclcpp::Duration & period)
 {
   if (!port_ || !port_->is_open()) {
     return hardware_interface::return_type::ERROR;
@@ -327,6 +327,18 @@ hardware_interface::return_type IpexArmSystem::read(
 
   for (const auto & line : port_->read_lines()) {
     handle_line(line);
+  }
+
+  // Drum position: no encoders, so integrate the reported speed (TF / RViz
+  // only). Kept within +-pi; the joint is continuous.
+  const double dt = period.seconds();
+  for (const auto & joint : drum_joints_) {
+    const std::string position_name = joint + "/position";
+    if (joint_state_interfaces_.count(position_name) == 0) {
+      continue;
+    }
+    const double angle = get_state(position_name) + get_state(joint + "/velocity") * dt;
+    set_state(position_name, std::remainder(angle, 2.0 * M_PI));
   }
   return hardware_interface::return_type::OK;
 }
