@@ -64,9 +64,9 @@ DEFAULT_PARAMS = {
     'excavate_dig_angle_deg': -25.0,   # default, both arms
     'excavate_drum_rpm': 2.0,          # default drum RPM, dig direction (= D-pad right)
     'excavate_drum_rpm_step': 0.25,    # D-pad left/right
-    'excavate_crawl_mps': 0.03,        # default crawl speed
-    'excavate_crawl_step_mps': 0.01,   # D-pad up/down
-    'excavate_crawl_max_mps': 0.10,
+    'excavate_crawl_mps': 0.1,        # default crawl speed #should be 0.1, default 0.03
+    'excavate_crawl_step_mps': 0.02,   # D-pad up/down, default 0.01 
+    'excavate_crawl_max_mps': 0.20,    #should be .2, default 0.10
     'excavate_steer_max_rad_s': 0.05,  # sticks: steering trim, (right - left) / 2 x this
     'excavate_arm_step_deg': 0.5,     # tap
     'excavate_arm_speed_deg_s': 2.5,   # jog / tap speed once digging
