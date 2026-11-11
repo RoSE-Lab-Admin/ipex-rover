@@ -1,5 +1,6 @@
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import ExecuteProcess, IncludeLaunchDescription, LogInfo, TimerAction
 from launch.launch_description_sources import (
     PythonLaunchDescriptionSource,
     AnyLaunchDescriptionSource,
@@ -132,12 +133,46 @@ def generate_launch_description():
         output='screen',
     )
 
+    # UM7 IMU (src/um7 submodule). Skipped with a message if the driver isn't
+    # built, so the rest of the rover still starts. Settings in config/um7.yaml.
+    try:
+        get_package_share_directory('umx_driver')
+        imu = Node(
+            package='umx_driver',
+            executable='um7_driver',
+            name='um7_driver',
+            parameters=[
+                PathJoinSubstitution([
+                    FindPackageShare('ipex_bringup'),
+                    'config',
+                    'um7.yaml',
+                ])
+            ],
+            output='screen',
+            respawn=True,
+            respawn_delay=5.0,
+        )
+        # Magnetic reference: the UM7's filter ignores the magnetometer until its
+        # reference matches the field inside the rover, and yaw drifts (~16 deg/min
+        # measured). set_mag_ref takes the current field as the reference (yaw 0 =
+        # heading at start). Kept in the UM7's RAM only, so it's set at every start.
+        # The rover must be still for the first ~15 s (this and the gyro zero).
+        imu_reset = TimerAction(period=10.0, actions=[ExecuteProcess(
+            cmd=['ros2', 'service', 'call', '/imu/reset', 'umx_driver/srv/Um7Reset',
+                 '{zero_gyros: true, reset_ekf: true, set_mag_ref: true}'],
+            output='screen',
+        )])
+        imu = [imu, imu_reset]
+    except PackageNotFoundError:
+        imu = [LogInfo(msg='umx_driver not built: no IMU (git submodule update --init, then colcon build)')]
+
     return LaunchDescription([
         control,
         foxglove,
         cmd_vel_bridge,
         controller,
         temperature_node,
+        *imu,
         energy_meter,
         cmd_mux,
         primitive_server,
