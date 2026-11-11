@@ -58,16 +58,19 @@ RoboClaw roboclaw2(&Serial3, 10000);
 // use the velocity PID tuned in Motion Studio. Units are QPPS (quadrature
 // encoder counts per second).
 //
-// Motors: goBILDA 5304 Saturn, 71.2:1, 1993.6 counts per output-shaft rev
-// (quadrature). Wheels mount directly on the output shaft.
+// Motors: goBILDA 5304 Saturn, 188:1 (since 2026-11; was 71.2:1, 1993.6),
+// 5281.1 counts per output-shaft rev (quadrature, goBILDA spec). Wheels mount
+// directly on the output shaft.
 // -----------------------------------------------------------------------------
-constexpr float COUNTS_PER_WHEEL_REV = 1993.6f;
+constexpr float COUNTS_PER_WHEEL_REV = 5281.1f;
 constexpr float WHEEL_RAD_S_TO_QPPS = COUNTS_PER_WHEEL_REV / (2.0f * PI);
 
-// Max commanded speed: 260 RPM rated no-load * 1993.6 / 60 = 8639 QPPS.
+// Max commanded speed: ~98 RPM = 1.59 m/s (rated no-load 100 RPM at 24 V =
+// 8802 QPPS). QPPS is counted at the motor, so the cap is unchanged from 71.2:1.
 constexpr float MAX_QPPS = 8640.0f;
 
-// Ramp rate for speed changes (QPPS per second).
+// Ramp rate for speed changes (QPPS per second). Kept from 71.2:1, so the
+// wheels ramp at 0.74 m/s^2 (was 1.95 m/s^2 with 71.2:1).
 constexpr uint32_t ACCEL_QPPS_S = 4000;
 
 // Fail-safe: if valid DRIVE commands stop arriving, stop all motors.

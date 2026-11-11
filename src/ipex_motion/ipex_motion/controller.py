@@ -35,9 +35,9 @@ DEFAULT_PARAMS = {
     'right_bumper_button': 5,
     'trigger_pressed_threshold': 0.0,
 
-    'min_side_speed': 0.35,
-    'max_side_speed': 3.50,
-    'speed_step': 0.35,
+    'min_side_speed': 0.132,           # m/s (188:1; see teleop.yaml)
+    'max_side_speed': 1.32,
+    'speed_step': 0.132,
     'wheel_separation': 0.582,
 
     'drum_rpm_step': 1.0,              # drum RPM per D-pad press
@@ -64,10 +64,12 @@ DEFAULT_PARAMS = {
     'excavate_dig_angle_deg': -25.0,   # default, both arms
     'excavate_drum_rpm': 2.0,          # default drum RPM, dig direction (= D-pad right)
     'excavate_drum_rpm_step': 0.25,    # D-pad left/right
-    'excavate_crawl_mps': 0.1,        # default crawl speed #should be 0.1, default 0.03
-    'excavate_crawl_step_mps': 0.02,   # D-pad up/down, default 0.01 
-    'excavate_crawl_max_mps': 0.20,    #should be .2, default 0.10
-    'excavate_steer_max_rad_s': 0.05,  # sticks: steering trim, (right - left) / 2 x this
+    # Crawl and steering: real speeds felt on 2026-11-09 with the 188:1 under
+    # the 71.2:1 firmware (then 0.1 / 0.02 / 0.20 m/s, 0.05 rad/s), x 1993.6 / 5281.1.
+    'excavate_crawl_mps': 0.038,       # default crawl speed
+    'excavate_crawl_step_mps': 0.0075,  # D-pad up/down
+    'excavate_crawl_max_mps': 0.075,
+    'excavate_steer_max_rad_s': 0.019,  # sticks: steering trim, (right - left) / 2 x this
     'excavate_arm_step_deg': 0.5,     # tap
     'excavate_arm_speed_deg_s': 2.5,   # jog / tap speed once digging
     'excavate_spinup_s': 1.0,          # drums spin this long before the arms lower
@@ -207,7 +209,7 @@ class Controller(Node):
 
         self.get_logger().info(
             f'IPEX hand controller ready | '
-            f'max speed = {self.max_side_speed:.1f} m/s | '
+            f'max speed = {self.max_side_speed:.2f} m/s | '
             f'drum speed = {self.drum_rpm:.1f} RPM (step {self.p["drum_rpm_step"]:g}, '
             f'max {self.drum_max_rpm():.1f}) | '
             f'X = excavation mode | B = ALL STOP'
@@ -407,7 +409,7 @@ class Controller(Node):
     def describe_dig_settings(self, s=None):
         s = s or self.dig_settings
         return (f'front {s["front_deg"]:.2f} deg, rear {s["rear_deg"]:.2f} deg, '
-                f'drums {s["drum_rpm"]:.2f} RPM, crawl {s["crawl_mps"]:.2f} m/s')
+                f'drums {s["drum_rpm"]:.2f} RPM, crawl {s["crawl_mps"]:.3f} m/s')
 
     def set_dig_phase(self, phase):
         self.dig_phase = phase
@@ -498,7 +500,7 @@ class Controller(Node):
                 self.set_arm_speed(self.p['excavate_arm_speed_deg_s'])
                 self.set_dig_phase('digging')
                 self.get_logger().warn(
-                    f'Excavation mode: digging, crawl {self.crawl_mps:.2f} m/s. '
+                    f'Excavation mode: digging, crawl {self.crawl_mps:.3f} m/s. '
                     f'D-pad L/R drums +/-{self.p["excavate_drum_rpm_step"]:g} RPM, '
                     f'U/D crawl +/-{self.p["excavate_crawl_step_mps"]:g} m/s, '
                     f'arm taps {self.p["excavate_arm_step_deg"]:g} deg.')
@@ -538,7 +540,7 @@ class Controller(Node):
             if change:
                 self.crawl_mps = clamp(round(self.crawl_mps + change, 6),
                                        0.0, self.p['excavate_crawl_max_mps'])
-                self.get_logger().info(f'Excavation crawl: {self.crawl_mps:.2f} m/s')
+                self.get_logger().info(f'Excavation crawl: {self.crawl_mps:.3f} m/s')
             return
 
         # D-pad up: + speed_step
@@ -547,7 +549,7 @@ class Controller(Node):
                 self.p['max_side_speed'],
                 self.max_side_speed + self.p['speed_step'])
             self.get_logger().info(
-                f'Max speed: {self.max_side_speed:.1f} m/s')
+                f'Max speed: {self.max_side_speed:.2f} m/s')
 
         # D-pad down: - speed_step
         if self.rising('dpad_down', dpad_y < -0.5):
@@ -555,7 +557,7 @@ class Controller(Node):
                 self.p['min_side_speed'],
                 self.max_side_speed - self.p['speed_step'])
             self.get_logger().info(
-                f'Max speed: {self.max_side_speed:.1f} m/s')
+                f'Max speed: {self.max_side_speed:.2f} m/s')
 
     def handle_drums(self, msg):
         # joy_linux D-pad X: +1 = left, -1 = right

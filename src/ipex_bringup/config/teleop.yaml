@@ -42,11 +42,13 @@ controller:
 
     # Drive
     # Closed-loop (RoboClaw PID) speeds: these are real m/s at the wheel.
-    # Motor top speed ~4.2 m/s (260 RPM, 0.155 m radius; firmware caps at
-    # 8640 QPPS). D-pad steps ~10% .. ~83% of top speed.
-    min_side_speed: 0.35    # m/s
-    max_side_speed: 3.50    # m/s
-    speed_step: 0.35        # m/s
+    # Top speed ~1.6 m/s (188:1, ~98 RPM, 0.155 m radius; firmware caps at
+    # 8640 QPPS). D-pad steps ~8% .. ~83% of top speed. Set 2026-11-11 to
+    # keep the real speeds driven with the 188:1 under the old 71.2:1 firmware
+    # (old values 0.35 / 3.5 / 0.35 x 1993.6 / 5281.1).
+    min_side_speed: 0.132   # m/s
+    max_side_speed: 1.32    # m/s
+    speed_step: 0.132       # m/s
     wheel_separation: 0.582 # m, must match diff_drive_controller
 
     # Drums, in drum RPM. 1 drum RPM = 400 x 80 / 60 = 533 motor steps/s.
