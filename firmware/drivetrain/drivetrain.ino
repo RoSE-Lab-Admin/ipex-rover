@@ -111,6 +111,12 @@ constexpr float CURRENT_DIVIDER_RATIO = 1.5f; // reconstruct ACS712 output volta
 // assumed 5 A, which made every drive current read ~2.8x too low.
 const float CURRENT_SENSITIVITY[NUM_CURRENT_CHANNELS] = {
   ACS712_30A, ACS712_30A, ACS712_30A, ACS712_30A};
+// Sensor orientation on the motor leads, mapped to the wheel frame (+ = that
+// wheel pushing the rover forward, same frame as DRIVE / SPEED / VOLT).
+// Raw signs while driving forward on 2026-11-11: bl -, br +, fr +, fl -.
+// With VOLT also in the wheel frame, VOLT x CURR is + when the motor draws
+// power and - when it returns power (braking / downhill), in either direction.
+const float CURRENT_SIGN[NUM_CURRENT_CHANNELS] = {-1.0f, 1.0f, 1.0f, -1.0f};
 
 constexpr int CURRENT_OVERSAMPLE_COUNT = 128;
 // Light smoothing between 10 Hz samples (1.0 = none). Was 0.08 (~1.2 s lag),
@@ -160,6 +166,10 @@ constexpr float ARM_CURRENT_DIVIDER_RATIO = 1.5f;   // reconstruct ACS712 output
 // Order: rear drum, rear shoulder, front drum, front shoulder.
 const float ARM_CURRENT_SENSITIVITY[NUM_ARM_CHANNELS] = {
   ACS712_30A, ACS712_05A, ACS712_30A, ACS712_05A};
+// Sensor orientation, so current drawn by a driver reads positive. From idle
+// holding current on 2026-11-11 (after CAL_ARM_CURRENT): drums read +0.15 A,
+// shoulders -0.48 A, so the shoulders are flipped.
+const float ARM_CURRENT_SIGN[NUM_ARM_CHANNELS] = {1.0f, -1.0f, 1.0f, -1.0f};
 
 // ACS712 output at 0 A, in sensor-side volts (nominal = 5 V supply / 2).
 //   All channels use these stored values (no boot auto-zero; see
@@ -416,7 +426,7 @@ void read_currents(float currents[NUM_CURRENT_CHANNELS]) {
     const float sensor_voltage =
       current_smoothed_pin_voltages[ch] * CURRENT_DIVIDER_RATIO;
 
-    currents[ch] =
+    currents[ch] = CURRENT_SIGN[ch] *
       (sensor_voltage - current_zero_offsets[ch]) /
       CURRENT_SENSITIVITY[ch];
   }
@@ -503,7 +513,8 @@ void read_and_send_arm_sensors() {
     const float sensor_v =
       read_pin_voltage(ARM_CURRENT_PINS[ch], ARM_OVERSAMPLE_COUNT) *
       ARM_CURRENT_DIVIDER_RATIO;
-    currents[ch] = (sensor_v - arm_current_zero_v[ch]) / ARM_CURRENT_SENSITIVITY[ch];
+    currents[ch] = ARM_CURRENT_SIGN[ch] *
+      (sensor_v - arm_current_zero_v[ch]) / ARM_CURRENT_SENSITIVITY[ch];
 
     voltages[ch] =
       read_pin_voltage(ARM_VOLTAGE_PINS[ch], ARM_OVERSAMPLE_COUNT) *
@@ -655,17 +666,19 @@ void read_and_send_voltages() {
   roboclaw1.ReadPWMs(RC_ADDRESS, pwm1_m1, pwm1_m2);
   roboclaw2.ReadPWMs(RC_ADDRESS, pwm2_m1, pwm2_m2);
 
+  // Signed motor voltage estimate in the wheel frame (+ = driving that wheel
+  // forward), the same frame as CURR, so VOLT x CURR is the motor's power.
   const float v_back_left =
-    v_main1 * (abs(pwm1_m1) / 32767.0f);
+    v_main1 * (pwm1_m1 / 32767.0f) * DIR_BACK_LEFT;
 
   const float v_back_right =
-    v_main1 * (abs(pwm1_m2) / 32767.0f);
+    v_main1 * (pwm1_m2 / 32767.0f) * DIR_BACK_RIGHT;
 
   const float v_front_right =
-    v_main2 * (abs(pwm2_m1) / 32767.0f);
+    v_main2 * (pwm2_m1 / 32767.0f) * DIR_FRONT_RIGHT;
 
   const float v_front_left =
-    v_main2 * (abs(pwm2_m2) / 32767.0f);
+    v_main2 * (pwm2_m2 / 32767.0f) * DIR_FRONT_LEFT;
 
   Serial.print("VOLT ");
   Serial.print(v_back_left, 3);

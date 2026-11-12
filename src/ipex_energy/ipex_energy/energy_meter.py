@@ -32,28 +32,25 @@ class EnergyMeter(Node):
 
         self.declare_parameter('rate_hz', 10.0)
         self.declare_parameter('stale_timeout_s', 0.5)
-        # Arm sensors read negative when drawing power (sensor orientation).
-        self.declare_parameter('arm_current_sign', -1.0)
 
         rate_hz = self.get_parameter('rate_hz').value
-        arm_sign = self.get_parameter('arm_current_sign').value
 
+        # P = V * I on every channel; the firmware signs V and I so that power
+        # drawn is positive (see energy_math).
         channels = []
         topics = {}
 
-        # Drive motors: P = V_est * |I| (V_est = battery V x PWM duty).
+        # Drive motors: V = battery V x PWM duty, I = motor current (wheel frame).
         for wheel in WHEELS:
             name = f'drive/{wheel}'
-            channels.append(Channel(name=name, group='drive', current_mode='abs'))
+            channels.append(Channel(name=name, group='drive'))
             topics[name] = (f'/rover/{wheel}/voltage', f'/rover/{wheel}/current')
 
-        # Arm driver supplies: P = V * (sign * I).
+        # Arm driver supplies: V = supply voltage, I = supply current.
         for arm in ARMS:
             for part in ARM_PARTS:
                 name = f'{arm}/{part}'
-                channels.append(Channel(
-                    name=name, group=arm,
-                    current_mode='signed', current_sign=arm_sign))
+                channels.append(Channel(name=name, group=arm))
                 topics[name] = (f'/rover/{arm}/{part}/voltage',
                                 f'/rover/{arm}/{part}/current')
 

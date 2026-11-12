@@ -13,9 +13,9 @@ Drives both RoboClaws (velocity PID speed commands) and reads all power sensors:
 | Pi → Teensy | `CAL_CURRENT` | Zero the drive current sensors (sensors powered, motors still); **saved to EEPROM** |
 | Pi → Teensy | `CAL_ARM_CURRENT` | Zero the arm current sensors (**arm driver supply leads disconnected**); **saved to EEPROM** |
 | Pi → Teensy | `CAL_SHOW` | Print the drive and arm zeros currently in use |
-| Teensy → Pi | `VOLT <bl> <br> <fr> <fl>` | Drive motor voltage estimate (RoboClaw battery V × PWM duty) |
-| Teensy → Pi | `CURR <bl> <br> <fr> <fl>` | Drive motor currents (A); ACS712 30A, stored zeros, no boot calibration |
-| Teensy → Pi | `ARM_CURR <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply currents (A), 10 Hz |
+| Teensy → Pi | `VOLT <bl> <br> <fr> <fl>` | Drive motor voltage estimate (RoboClaw battery V × PWM duty), signed in the wheel frame (+ = driving that wheel forward) |
+| Teensy → Pi | `CURR <bl> <br> <fr> <fl>` | Drive motor currents (A), signed in the same wheel frame, so VOLT × CURR is + when drawing and − when braking; ACS712 30A, stored zeros, no boot calibration |
+| Teensy → Pi | `ARM_CURR <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply currents (A), + when drawing, 10 Hz |
 | Teensy → Pi | `ARM_VOLT <rear_drum> <rear_shoulder> <front_drum> <front_shoulder>` | Arm driver supply voltages (V), 10 Hz |
 | Teensy → Pi | `BATT <drivetrain_V> <pi_arm_V>` | Battery voltages (V), 10 Hz |
 | Teensy → Pi | `RC_CURR <bl> <br> <fr> <fl>` | Motor currents reported by the RoboClaws (A, signed; `nan` if no reply), 10 Hz. **Unreliable (offset at standstill): use `CURR`.** |

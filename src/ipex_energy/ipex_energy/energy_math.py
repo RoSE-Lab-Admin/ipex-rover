@@ -1,13 +1,11 @@
 """ROS-free power and energy accounting (unit-testable without ROS).
 
-Power per channel:
-  - 'abs' mode (drive motors):    P = V * |I|
-      V is the RoboClaw battery voltage x PWM duty (always >= 0) and I is
-      the motor current, whose sign follows motor direction. V * |I| is the
-      power drawn from the battery for that motor.
-  - 'signed' mode (arm supplies): P = V * (sign * I)
-      Supply-side measurement; sign fixes sensor orientation so power drawn
-      is positive (negative = energy returned).
+Power per channel: P = V * I. Positive = power drawn, negative = power
+returned (drive motors braking or going downhill). The drivetrain firmware
+sets every sign so this holds:
+  - Drive motors: V = battery V x PWM duty and I = motor current, both
+    signed in the wheel frame (+ = pushing the rover forward).
+  - Arm supplies: V = supply voltage, I = supply current, + when drawing.
 
 Energy is integrated with the trapezoid rule between steps. A channel whose
 voltage or current is missing, NaN, or older than the stale timeout counts
@@ -25,8 +23,6 @@ GROUP_TOTAL = 'total'
 class Channel:
     name: str
     group: str
-    current_mode: str = 'abs'      # 'abs' or 'signed'
-    current_sign: float = 1.0      # used in 'signed' mode
     voltage: float = math.nan
     current: float = math.nan
     voltage_time: float = -math.inf
@@ -68,9 +64,7 @@ class EnergyAccumulator:
         if not (fresh and valid):
             return 0.0, True
 
-        if ch.current_mode == 'signed':
-            return ch.voltage * ch.current_sign * ch.current, False
-        return max(ch.voltage, 0.0) * abs(ch.current), False
+        return ch.voltage * ch.current, False
 
     def step(self, now):
         """Recompute power and integrate energy up to time `now` (seconds)."""

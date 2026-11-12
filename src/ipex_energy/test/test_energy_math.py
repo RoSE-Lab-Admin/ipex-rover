@@ -3,8 +3,8 @@ import math
 from ipex_energy.energy_math import Channel, EnergyAccumulator
 
 
-def make(mode='abs', sign=1.0, stale_timeout_s=0.5):
-    ch = Channel(name='a', group='g', current_mode=mode, current_sign=sign)
+def make(stale_timeout_s=0.5):
+    ch = Channel(name='a', group='g')
     return EnergyAccumulator(channels=[ch], stale_timeout_s=stale_timeout_s), ch
 
 
@@ -23,16 +23,28 @@ def test_constant_power_integrates_linearly():
     assert math.isclose(ch.energy_j, 48.0, rel_tol=1e-9)
 
 
-def test_abs_mode_ignores_current_direction():
-    acc, ch = make(mode='abs')
-    feed(acc, 10.0, -3.0, 0.0)
+def test_reverse_driving_draws_power():
+    # Wheel frame: driving backward = negative V and negative I.
+    acc, ch = make()
+    feed(acc, -10.0, -3.0, 0.0)
     assert math.isclose(ch.power_w, 30.0)
 
 
-def test_signed_mode_applies_sensor_sign():
-    acc, ch = make(mode='signed', sign=-1.0)
-    feed(acc, 25.0, -0.5, 0.0)
-    assert math.isclose(ch.power_w, 12.5)
+def test_braking_returns_power():
+    # Driving forward (V > 0) while the motor brakes (I < 0) = regen.
+    acc, ch = make()
+    feed(acc, 10.0, -2.0, 0.0)
+    assert math.isclose(ch.power_w, -20.0)
+
+
+def test_returned_energy_subtracts():
+    acc, ch = make()
+    for k in range(11):          # 1 s drawing 20 W
+        feed(acc, 10.0, 2.0, k * 0.1)
+    for k in range(11, 21):      # ramp to 1 s returning 20 W
+        feed(acc, 10.0, -2.0, k * 0.1)
+    # 20 J drawn, then a 0.1 s trapezoid through zero, then 0.9 s at -20 W.
+    assert math.isclose(ch.energy_j, 20.0 + 0.0 - 18.0, abs_tol=1e-9)
 
 
 def test_stale_channel_counts_zero_and_is_flagged():
@@ -62,7 +74,7 @@ def test_reset_zeroes_energy():
 
 def test_group_totals_include_total():
     a = Channel(name='a', group='drive')
-    b = Channel(name='b', group='arm', current_mode='signed', current_sign=1.0)
+    b = Channel(name='b', group='arm')
     acc = EnergyAccumulator(channels=[a, b])
     for name, v, i in (('a', 10.0, 1.0), ('b', 20.0, 2.0)):
         acc.set_voltage(name, v, 0.0)
