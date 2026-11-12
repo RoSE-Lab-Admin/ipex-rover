@@ -113,10 +113,11 @@ const float CURRENT_SENSITIVITY[NUM_CURRENT_CHANNELS] = {
   ACS712_30A, ACS712_30A, ACS712_30A, ACS712_30A};
 // Sensor orientation on the motor leads, mapped to the wheel frame (+ = that
 // wheel pushing the rover forward, same frame as DRIVE / SPEED / VOLT).
-// Raw signs while driving forward on 2026-11-11: bl -, br +, fr +, fl -.
+// Set so VOLT x CURR > 0 while driving forward (checked 2026-11-12: the front
+// pair read negative power with {-, +, +, -}, so the fronts are flipped).
 // With VOLT also in the wheel frame, VOLT x CURR is + when the motor draws
 // power and - when it returns power (braking / downhill), in either direction.
-const float CURRENT_SIGN[NUM_CURRENT_CHANNELS] = {-1.0f, 1.0f, 1.0f, -1.0f};
+const float CURRENT_SIGN[NUM_CURRENT_CHANNELS] = {-1.0f, 1.0f, -1.0f, 1.0f};
 
 constexpr int CURRENT_OVERSAMPLE_COUNT = 128;
 // Light smoothing between 10 Hz samples (1.0 = none). Was 0.08 (~1.2 s lag),
