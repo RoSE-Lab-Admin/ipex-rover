@@ -66,7 +66,7 @@ DEFAULT_PARAMS = {
     'excavate_drum_rpm_step': 0.25,    # D-pad left/right
     # Crawl and steering: real speeds felt on 2026-11-09 with the 188:1 under
     # the 71.2:1 firmware (then 0.1 / 0.02 / 0.20 m/s, 0.05 rad/s), x 1993.6 / 5281.1.
-    'excavate_crawl_mps': 0.038,       # default crawl speed (+ forward, - backward)
+    'excavate_crawl_mps': 0.0,         # default crawl speed (+ forward, - backward); 0 = dig in place, D-pad U/D to move
     'excavate_crawl_step_mps': 0.0075,  # D-pad up/down; down past 0 reverses
     'excavate_crawl_max_mps': 0.075,    # magnitude limit, both directions
     'excavate_steer_max_rad_s': 0.019,  # sticks: steering trim, (right - left) / 2 x this
