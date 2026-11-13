@@ -10,6 +10,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 #include "std_msgs/msg/empty.hpp"
+#include "std_msgs/msg/string.hpp"
 
 #include "ipex_hardware/drivetrain_transport.hpp"
 
@@ -60,6 +61,13 @@ private:
   // ALL STOP: /ipex/all_stop (std_msgs/Empty) -> "STOP" to the drivetrain.
   std::atomic<bool> stop_requested_{false};
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr all_stop_sub_;
+
+  // Calibration: /ipex/drivetrain/command (std_msgs/String), only CAL_CURRENT,
+  // CAL_ARM_CURRENT or CAL_SHOW; sent instead of DRIVE on the next write().
+  // Index into kCalCommands + 1 (0 = nothing pending). Replies come back on
+  // /ipex/drivetrain/reply (SerialTransport). Used by `roxey cal`.
+  std::atomic<int> pending_command_{0};
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr command_sub_;
 };
 
 }  // namespace ipex_hardware

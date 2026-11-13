@@ -66,6 +66,8 @@ SerialTransport::SerialTransport(
   battery_voltage_pubs_[1] = node_->create_publisher<std_msgs::msg::Float32>(
     "/rover/arm_battery/voltage", 10);
 
+  reply_pub_ = node_->create_publisher<std_msgs::msg::String>("/ipex/drivetrain/reply", 10);
+
   open_port();
 }
 
@@ -236,6 +238,15 @@ void SerialTransport::publish_arm_values(
 
 void SerialTransport::handle_line(const std::string & line)
 {
+  // Calibration replies (CAL_CURRENT / CAL_ARM_CURRENT / CAL_SHOW, and the
+  // "# CAL ..." zeros printed at Teensy boot): pass through for `roxey cal`.
+  if (line.rfind("CAL_", 0) == 0 || line.rfind("# CAL", 0) == 0) {
+    std_msgs::msg::String msg;
+    msg.data = line;
+    reply_pub_->publish(msg);
+    return;
+  }
+
   // Arm power sensors: rear drum, rear shoulder, front drum, front shoulder.
   {
     float arm[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -344,10 +355,6 @@ void SerialTransport::handle_line(const std::string & line)
       front_left);
     return;
   }
-
-  // CAL_CURRENT START / CAL_CURRENT OK are intentionally ignored for now.
-  // A future ROS calibration primitive can promote those status lines into
-  // an explicit request/acknowledgement API.
 
 }
 
@@ -470,6 +477,22 @@ bool SerialTransport::stop()
   read_available();
 
   return bytes_written == static_cast<ssize_t>(sizeof(stop_command) - 1);
+}
+
+
+bool SerialTransport::send_raw(const std::string & command)
+{
+  if (fd_ < 0)
+  {
+    return false;
+  }
+
+  const std::string line = command + "\n";
+  const ssize_t bytes_written = ::write(fd_, line.data(), line.size());
+
+  read_available();
+
+  return bytes_written == static_cast<ssize_t>(line.size());
 }
 
 }  // namespace ipex_hardware

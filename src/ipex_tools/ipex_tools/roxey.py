@@ -9,6 +9,7 @@
   roxey record NAME [--duration S]           record a bag (Ctrl+C to stop)
   roxey energy [--once | --reset]            live power / energy
   roxey sensors [--window 5]                 live V / I / P of every sensor (sanity checks)
+  roxey cal show | drive | arms [--yes]      current sensor zeros: show / re-zero (saved on Teensy)
   roxey home                                 home (calibrate) both arms  -- ARMS MOVE
   roxey stop                                 all stop
 
@@ -513,6 +514,176 @@ def cmd_sensors(args):
 
 
 # ============================================================================
+# cal (current sensor zeros on the drivetrain Teensy)
+# ============================================================================
+# Path: roxey -> /ipex/drivetrain/command (String) -> IpexSystem -> Teensy;
+# Teensy "CAL_..." lines -> /ipex/drivetrain/reply (String). Zeros are saved in
+# the Teensy EEPROM (no reflash). Firmware channel orders:
+CAL_DRIVE_ORDER = ('back_left', 'back_right', 'front_right', 'front_left')
+CAL_ARM_ORDER = ('rear_arm/drum', 'rear_arm/shoulder', 'front_arm/drum', 'front_arm/shoulder')
+
+CAL_KINDS = {
+    'drive': {
+        'command': 'CAL_CURRENT', 'show_key': 'DRIVE',
+        'channels': [(w, f'/rover/{w}/current') for w in CAL_DRIVE_ORDER],
+        'steps': [
+            'Wheels still (the Teensy also stops the drive motors during the ~2 s measurement).',
+            'Best: RoboClaw motor power OFF, Teensy + sensors on, so no holding current flows.',
+        ],
+    },
+    'arms': {
+        'command': 'CAL_ARM_CURRENT', 'show_key': 'ARM',
+        'channels': [(c, f'/rover/{c}/current') for c in CAL_ARM_ORDER],
+        'steps': [
+            'Rest or support BOTH arms first: unplugging the shoulder drivers drops holding torque.',
+            'Unplug all 4 arm driver supply leads (both drums AND both shoulders), downstream',
+            'of the current sensors, so no current flows through them. Sensors stay powered.',
+            'Afterwards: plug them back in, then home the arms (roxey home) if an arm moved.',
+        ],
+    },
+}
+
+
+class _CalLink:
+    """Send CAL_* commands and collect the Teensy's replies; watch currents and wheel speed."""
+
+    def __init__(self, rclpy, node, channels):
+        from std_msgs.msg import Float32, String
+        self.rclpy, self.node, self.String = rclpy, node, String
+        self.replies = []
+        node.create_subscription(String, '/ipex/drivetrain/reply',
+                                 lambda m: self.replies.append(m.data), 10)
+        self.pub = node.create_publisher(String, '/ipex/drivetrain/command', 10)
+        self.current = {name: _Stat(1e9) for name, _ in channels}
+        for name, topic in channels:
+            node.create_subscription(
+                Float32, topic, lambda m, s=self.current[name]: s.add(float(m.data), time.monotonic()), 10)
+        self.speed = {w: _Stat(1e9) for w in CAL_DRIVE_ORDER}
+        for w in CAL_DRIVE_ORDER:
+            node.create_subscription(
+                Float32, f'/rover/{w}/speed',
+                lambda m, s=self.speed[w]: s.add(float(m.data), time.monotonic()), 10)
+
+    def spin(self, seconds):
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            self.rclpy.spin_once(self.node, timeout_sec=0.05)
+
+    def send(self, command, expect_prefixes, timeout=8.0):
+        """Publish `command`; return the reply lines starting with any of expect_prefixes."""
+        deadline = time.monotonic() + 2.0
+        while self.pub.get_subscription_count() == 0 and time.monotonic() < deadline:
+            self.rclpy.spin_once(self.node, timeout_sec=0.1)
+        if self.pub.get_subscription_count() == 0:
+            raise RuntimeError('nothing listens on /ipex/drivetrain/command '
+                               '(rover not running, or ipex_hardware not rebuilt)')
+        self.replies.clear()
+        self.pub.publish(self.String(data=command))
+        deadline = time.monotonic() + timeout
+        found = []
+        while time.monotonic() < deadline:
+            self.rclpy.spin_once(self.node, timeout_sec=0.05)
+            found = [r for r in self.replies if r.startswith(expect_prefixes)]
+            if any(f.startswith(command + ' OK') or ' REJECTED' in f for f in found) or \
+               (command == 'CAL_SHOW' and len(found) >= 2):
+                return found
+        return found
+
+    def show(self):
+        """{'DRIVE': [z0..z3], 'ARM': [z0..z3]} in sensor-side volts."""
+        zeros = {}
+        for line in self.send('CAL_SHOW', ('CAL_SHOW',), timeout=3.0):
+            parts = line.split()
+            if len(parts) == 6:
+                zeros[parts[1]] = [float(x) for x in parts[2:]]
+        return zeros
+
+    def mean_currents(self, seconds):
+        for s in self.current.values():
+            s.reset()
+        self.spin(seconds)
+        return {name: (sum(v for _, v in s.recent) / len(s.recent) if s.recent else math.nan)
+                for name, s in self.current.items()}
+
+
+def _print_zeros(title, names, zeros):
+    print(title)
+    for name, z in zip(names, zeros):
+        print(f'  {name:<20} {z:.4f} V')
+
+
+def cmd_cal(args):
+    rclpy = _init_ros()
+    from rclpy.node import Node
+    node = Node('roxey_cal')
+    try:
+        link = _CalLink(rclpy, node, CAL_KINDS['drive']['channels'] + CAL_KINDS['arms']['channels'])
+        if args.what == 'show':
+            zeros = link.show()
+            if not zeros:
+                print('No CAL_SHOW reply from the drivetrain Teensy.', file=sys.stderr)
+                return 1
+            if 'DRIVE' in zeros:
+                _print_zeros('Drive current zeros (sensor V):', CAL_DRIVE_ORDER, zeros['DRIVE'])
+            if 'ARM' in zeros:
+                _print_zeros('Arm current zeros (sensor V):', CAL_ARM_ORDER, zeros['ARM'])
+            print('Nominal 2.50 V. 1 A = 66 mV on the 30 A sensors (drive, drums), 185 mV on 5 A (shoulders).')
+            return 0
+
+        kind = CAL_KINDS[args.what]
+        names = [n for n, _ in kind['channels']]
+        print(f'Zero the {args.what} current sensors ({kind["command"]}, saved on the Teensy):')
+        for step in kind['steps']:
+            print(f'  - {step}')
+
+        link.spin(1.5)
+        moving = [w for w, s in link.speed.items() if math.isfinite(s.value) and abs(s.value) > 0.05]
+        if moving:
+            print(f'Refusing: wheels are turning ({", ".join(moving)}). Stop the rover first.',
+                  file=sys.stderr)
+            return 1
+
+        if not args.yes:
+            answer = input('Ready? Type y to calibrate: ').strip().lower()
+            if answer != 'y':
+                print('Cancelled, nothing changed.')
+                return 0
+
+        old = link.show().get(kind['show_key'])
+        before = link.mean_currents(2.0)
+        print(f'Sending {kind["command"]} ...')
+        replies = link.send(kind['command'], (kind['command'],))
+        result = next((r for r in replies if r.startswith(kind['command'] + ' OK')
+                       or ' REJECTED' in r), None)
+        if result is None:
+            print(f'No answer from the Teensy within 8 s. Replies: {replies or "none"}', file=sys.stderr)
+            return 1
+        if ' REJECTED' in result:
+            print(f'REJECTED, nothing saved: {result}', file=sys.stderr)
+            return 1
+        new = [float(x) for x in result.split()[-4:]]
+
+        link.spin(1.0)
+        after = link.mean_currents(3.0)
+        print(f'\nSaved. {"channel":<20} {"old zero V":>10} {"new zero V":>10} '
+              f'{"I before A":>11} {"I after A":>10}')
+        for i, name in enumerate(names):
+            o = f'{old[i]:10.4f}' if old else f'{"?":>10}'
+            print(f'       {name:<20} {o} {new[i]:10.4f} {before[name]:11.3f} {after[name]:10.3f}')
+        print('\nI after should be within about +/-0.05 A. Check over time with: roxey sensors')
+        if args.what == 'arms':
+            print('Now plug the arm driver supply leads back in (then roxey home if an arm moved).')
+        return 0
+    except RuntimeError as e:
+        print(f'roxey cal: {e}', file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 1
+    finally:
+        _shutdown(rclpy, node)
+
+
+# ============================================================================
 # home / stop
 # ============================================================================
 
@@ -584,6 +755,12 @@ def build_parser():
     p.add_argument('--window', type=float, default=5.0, help='seconds for the I mean (default 5)')
     p.add_argument('--period', type=float, default=0.5, help='screen refresh, s (default 0.5)')
     p.set_defaults(func=cmd_sensors)
+
+    p = sub.add_parser('cal', help='current sensor zeros: show, or re-zero drive / arms')
+    p.add_argument('what', choices=('show', 'drive', 'arms'),
+                   help='show = print zeros in use; drive = CAL_CURRENT; arms = CAL_ARM_CURRENT')
+    p.add_argument('--yes', action='store_true', help='skip the "ready?" question')
+    p.set_defaults(func=cmd_cal)
 
     p = sub.add_parser('home', help='home (calibrate) both arms -- ARMS MOVE')
     p.set_defaults(func=cmd_topic('/ipex/home_arms', 'Homing arms.'))

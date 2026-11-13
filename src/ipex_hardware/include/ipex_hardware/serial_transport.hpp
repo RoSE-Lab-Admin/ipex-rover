@@ -7,6 +7,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float32.hpp"
+#include "std_msgs/msg/string.hpp"
 
 #include "ipex_hardware/drivetrain_transport.hpp"
 
@@ -28,6 +29,8 @@ public:
     double right_wheel_rad_s) override;
 
   bool stop() override;
+
+  bool send_raw(const std::string & command) override;
 
   WheelFeedback wheel_feedback() const override {return wheel_feedback_;}
 
@@ -69,6 +72,10 @@ private:
 
   // Battery voltage sensors: 0 drivetrain battery, 1 Pi / arm battery.
   std::array<rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr, 2> battery_voltage_pubs_;
+
+  // Calibration replies from the Teensy ("CAL_..." and "# CAL ..." lines),
+  // republished as-is on /ipex/drivetrain/reply for `roxey cal`.
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr reply_pub_;
 
   rclcpp::Node::SharedPtr node_;
 

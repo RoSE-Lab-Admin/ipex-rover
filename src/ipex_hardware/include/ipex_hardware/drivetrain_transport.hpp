@@ -3,6 +3,7 @@
 
 #include <array>
 #include <chrono>
+#include <string>
 
 namespace ipex_hardware
 {
@@ -31,6 +32,10 @@ public:
 
   // Immediately stop all drive motors.
   virtual bool stop() = 0;
+
+  // Send one maintenance command line as-is (e.g. "CAL_SHOW"). The caller
+  // validates it; a newline is added here.
+  virtual bool send_raw(const std::string & /*command*/) {return false;}
 
   // Latest measured wheel motion (has_* false until the firmware sends it).
   virtual WheelFeedback wheel_feedback() const {return WheelFeedback{};}

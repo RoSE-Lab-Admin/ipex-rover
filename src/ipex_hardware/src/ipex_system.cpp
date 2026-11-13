@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <iterator>
 #include <string>
 #include <utility>
 
@@ -11,6 +12,13 @@
 
 namespace ipex_hardware
 {
+
+namespace
+{
+// Drivetrain Teensy maintenance commands accepted on /ipex/drivetrain/command.
+// The firmware stops the drive motors itself during CAL_CURRENT / CAL_ARM_CURRENT.
+const char * const kCalCommands[] = {"CAL_CURRENT", "CAL_ARM_CURRENT", "CAL_SHOW"};
+}  // namespace
 
 hardware_interface::CallbackReturn IpexSystem::on_init(
   const hardware_interface::HardwareComponentInterfaceParams & params)
@@ -130,6 +138,20 @@ hardware_interface::CallbackReturn IpexSystem::on_configure(
   all_stop_sub_ = get_node()->create_subscription<std_msgs::msg::Empty>(
     "/ipex/all_stop", 10,
     [this](const std_msgs::msg::Empty &) {stop_requested_ = true;});
+
+  command_sub_ = get_node()->create_subscription<std_msgs::msg::String>(
+    "/ipex/drivetrain/command", 10,
+    [this](const std_msgs::msg::String & msg) {
+      for (int i = 0; i < static_cast<int>(std::size(kCalCommands)); ++i) {
+        if (msg.data == kCalCommands[i]) {
+          pending_command_ = i + 1;
+          return;
+        }
+      }
+      RCLCPP_WARN(get_logger(),
+        "Ignored /ipex/drivetrain/command '%s' (allowed: CAL_CURRENT, CAL_ARM_CURRENT, CAL_SHOW).",
+        msg.data.c_str());
+    });
 
   RCLCPP_INFO(
     get_logger(),
@@ -321,6 +343,21 @@ hardware_interface::return_type IpexSystem::write(
       get_logger(),
       "ALL STOP: drivetrain STOP sent.");
 
+    return hardware_interface::return_type::OK;
+  }
+
+
+  // Calibration command: sent instead of DRIVE this cycle. The firmware stops
+  // the motors, measures for ~2 s and discards DRIVE lines received meanwhile.
+  if (const int pending = pending_command_.exchange(0); pending > 0)
+  {
+    const char * command = kCalCommands[pending - 1];
+    if (!drivetrain_transport_->send_raw(command))
+    {
+      RCLCPP_ERROR(get_logger(), "Failed to send %s to the drivetrain.", command);
+      return hardware_interface::return_type::ERROR;
+    }
+    RCLCPP_WARN(get_logger(), "Sent %s to the drivetrain Teensy.", command);
     return hardware_interface::return_type::OK;
   }
 

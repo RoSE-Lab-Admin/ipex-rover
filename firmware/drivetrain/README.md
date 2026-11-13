@@ -59,3 +59,5 @@ Zeros are saved in the Teensy EEPROM by `CAL_CURRENT` / `CAL_ARM_CURRENT` and lo
 
 - Drive: sensors powered, wheels still, send `CAL_CURRENT`.
 - Arms: disconnect each arm driver supply lead downstream of its sensor, send `CAL_ARM_CURRENT`.
+
+With the rover running, use `roxey cal show | drive | arms` on the Pi: it sends these through ROS (`/ipex/drivetrain/command`), prints the old and new zeros and the currents before/after. No need to stop the service or open a serial terminal.
