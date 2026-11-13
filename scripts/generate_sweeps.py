@@ -131,7 +131,7 @@ write('sweep_point_turn',
       ['', 'Every left turn is followed by the same turn right, so the heading',
        'returns; the right turns double as mirror data. Angle only needs 3',
        'points (energy is linear in angle at a fixed rate). Point turns can',
-       'STALL on high-grip floors (7 A limit).'],
+       'STALL on high-grip floors (9 A limit).'],
       'Point turn rate and angle sweeps, left then right.',
       [('turn rate (90 deg each way)', rate), ('turn angle (17.2 deg/s)', ang)])
 

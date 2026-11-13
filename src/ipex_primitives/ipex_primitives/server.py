@@ -63,7 +63,7 @@ CONFIG_DEFAULTS = {
     'max_turn_rad_s': 1.0,
     'drive_timeout_factor': 1.5,
     'drive_timeout_margin_s': 3.0,
-    'stall_current_a': 6.5,
+    'stall_current_a': 8.5,     # 0.5 A under the RoboClaw 9 A limit
     'stall_time_s': 1.0,
     'drum_dig_sign_front': -1.0,
     'drum_dig_sign_rear': -1.0,

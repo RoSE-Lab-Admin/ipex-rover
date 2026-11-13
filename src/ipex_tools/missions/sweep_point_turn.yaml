@@ -15,7 +15,7 @@
 # Every left turn is followed by the same turn right, so the heading
 # returns; the right turns double as mirror data. Angle only needs 3
 # points (energy is linear in angle at a fixed rate). Point turns can
-# STALL on high-grip floors (7 A limit).
+# STALL on high-grip floors (9 A limit).
 # ============================================================================
 
 save_as:                # output folder name, e.g. arc_sweep_lab_oct21

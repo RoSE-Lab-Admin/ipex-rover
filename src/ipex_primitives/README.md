@@ -37,7 +37,7 @@ Accepted but not supported yet (return `UNSUPPORTED` if given): `excavate.m_targ
 
 **Drum order:** `excavate` spins the drums up (`drum_spinup_s`, 1 s) before the arms lower, so they reach the ground already turning. Drums are always the last thing to stop: on any end except all stop (success, cancel, override, stall, timeout) the server halts the arms, stops the wheels, waits for odometry to show them stopped (max `drum_stop_wait_s`, 3 s) plus `drum_stop_delay_s` (0.5 s), then stops the drums. This applies to `bulldoze` and `deposit` too.
 
-**Bulldoze** is a push, not a dig: the drum rides just above the ground and spins while the rover crawls slowly, so loose material gets pushed and churned ahead of it. Torque comes from the RoboClaw speed loop, which applies whatever current holding `speed_mps` takes, up to the RoboClaw current limit (set in Motion Studio). The `STALL` check (≥ 6.5 A for 1 s, `stall_current_a`) still applies, so a push that bogs down ends with `STALL`.
+**Bulldoze** is a push, not a dig: the drum rides just above the ground and spins while the rover crawls slowly, so loose material gets pushed and churned ahead of it. Torque comes from the RoboClaw speed loop, which applies whatever current holding `speed_mps` takes, up to the RoboClaw current limit (set in Motion Studio). The `STALL` check (≥ 8.5 A for 1 s, `stall_current_a`) still applies, so a push that bogs down ends with `STALL`.
 
 Drum direction: `omega_drum_rad_s > 0` digs on `excavate` and `bulldoze` (the hand controller's D-pad-right direction; `bulldoze` also takes negative for the dump direction); `deposit` always spins in the dump direction.
 
@@ -49,7 +49,7 @@ Drum direction: `omega_drum_rad_s > 0` digs on `excavate` and `bulldoze` (the ha
 | `PRECONDITION` | e.g. arm not homed, no odometry, no arm angle feedback |
 | `BUSY` | another primitive is running |
 | `TIMEOUT` | did not finish within its time limit (expected time × 1.5 + margin) |
-| `STALL` | a drive motor at ≥ 6.5 A (ACS712 sensor, `/rover/<wheel>/current`) for ≥ 1 s |
+| `STALL` | a drive motor at ≥ 8.5 A (ACS712 sensor, `/rover/<wheel>/current`) for ≥ 1 s |
 | `ESTOP` | all stop (B / `roxey stop` / `/ipex/all_stop`) |
 | `OPERATOR_OVERRIDE` | operator used the hand controller during the primitive |
 | `CANCELED` | the caller canceled (e.g. Ctrl+C) |
