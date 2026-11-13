@@ -10,7 +10,8 @@
 # B                : ALL STOP (/ipex/all_stop -> STOP to every Teensy; drive + drums zero)
 # X                : EXCAVATION MODE on/off: drums spin up, both arms lower to the dig
 #                    angle, rover crawls; D-pad / arm buttons / sticks become fine
-#                    adjustments. X again: wheels stop, then drums; arms stay put.
+#                    adjustments; D-pad down past 0 crawls backward.
+#                    X again: wheels stop, then drums; arms stay put.
 #                    However the run ends (X, B, or a timeout) it saves each arm's
 #                    angle, drum RPM and crawl speed
 #                    (~/roxey_data/excavation_mode.yaml); the next X starts there.

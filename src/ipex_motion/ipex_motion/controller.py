@@ -66,9 +66,9 @@ DEFAULT_PARAMS = {
     'excavate_drum_rpm_step': 0.25,    # D-pad left/right
     # Crawl and steering: real speeds felt on 2026-11-09 with the 188:1 under
     # the 71.2:1 firmware (then 0.1 / 0.02 / 0.20 m/s, 0.05 rad/s), x 1993.6 / 5281.1.
-    'excavate_crawl_mps': 0.038,       # default crawl speed
-    'excavate_crawl_step_mps': 0.0075,  # D-pad up/down
-    'excavate_crawl_max_mps': 0.075,
+    'excavate_crawl_mps': 0.038,       # default crawl speed (+ forward, - backward)
+    'excavate_crawl_step_mps': 0.0075,  # D-pad up/down; down past 0 reverses
+    'excavate_crawl_max_mps': 0.075,    # magnitude limit, both directions
     'excavate_steer_max_rad_s': 0.019,  # sticks: steering trim, (right - left) / 2 x this
     'excavate_arm_step_deg': 0.5,     # tap
     'excavate_arm_speed_deg_s': 2.5,   # jog / tap speed once digging
@@ -366,7 +366,8 @@ class Controller(Node):
     # stopping wheels stop, then drums stop (drums are always last)
     #
     # Saved settings (dig_settings): {front_deg, rear_deg, drum_rpm, crawl_mps},
-    # drum_rpm as a dig-direction magnitude. Written however a run ends.
+    # drum_rpm as a dig-direction magnitude, crawl_mps signed (- = backward;
+    # the rover is symmetric front/back). Written however a run ends.
 
     def default_dig_settings(self):
         angle = float(self.p['excavate_dig_angle_deg'])
@@ -440,7 +441,8 @@ class Controller(Node):
 
         self.release_arm_inputs()
         self.dig_target = {'front': s['front_deg'], 'rear': s['rear_deg']}
-        self.crawl_mps = clamp(s['crawl_mps'], 0.0, self.p['excavate_crawl_max_mps'])
+        crawl_max = self.p['excavate_crawl_max_mps']
+        self.crawl_mps = clamp(s['crawl_mps'], -crawl_max, crawl_max)
         self.drum_rpm = drum      # dig = D-pad right
         self.publish_drums()
         self.set_dig_phase('spinup')
@@ -538,8 +540,10 @@ class Controller(Node):
             if self.rising('dpad_down', dpad_y < -0.5):
                 change = -step
             if change:
+                # Signed: D-pad down past 0 crawls backward (rover is symmetric).
+                crawl_max = self.p['excavate_crawl_max_mps']
                 self.crawl_mps = clamp(round(self.crawl_mps + change, 6),
-                                       0.0, self.p['excavate_crawl_max_mps'])
+                                       -crawl_max, crawl_max)
                 self.get_logger().info(f'Excavation crawl: {self.crawl_mps:.3f} m/s')
             return
 
