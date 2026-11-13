@@ -167,10 +167,12 @@ constexpr float ARM_CURRENT_DIVIDER_RATIO = 1.5f;   // reconstruct ACS712 output
 // Order: rear drum, rear shoulder, front drum, front shoulder.
 const float ARM_CURRENT_SENSITIVITY[NUM_ARM_CHANNELS] = {
   ACS712_30A, ACS712_05A, ACS712_30A, ACS712_05A};
-// Sensor orientation, so current drawn by a driver reads positive. From idle
-// holding current on 2026-11-11 (after CAL_ARM_CURRENT): drums read +0.15 A,
-// shoulders -0.48 A, so the shoulders are flipped.
-const float ARM_CURRENT_SIGN[NUM_ARM_CHANNELS] = {1.0f, -1.0f, 1.0f, -1.0f};
+// Sensor orientation, so current drawn by a driver reads positive.
+//   Shoulders: idle holding current read -0.48 A on 2026-11-11 -> flipped.
+//   Drums: the small idle +0.15 A was offset, not draw. On 2026-11-13 the rear
+//   drum read +0.05 A stopped and -0.40 A spinning (draw makes it go down)
+//   -> flipped too; front drum energy was negative the same way.
+const float ARM_CURRENT_SIGN[NUM_ARM_CHANNELS] = {-1.0f, -1.0f, -1.0f, -1.0f};
 
 // ACS712 output at 0 A, in sensor-side volts (nominal = 5 V supply / 2).
 //   All channels use these stored values (no boot auto-zero; see
