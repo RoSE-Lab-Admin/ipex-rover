@@ -527,8 +527,10 @@ CAL_KINDS = {
         'command': 'CAL_CURRENT', 'show_key': 'DRIVE',
         'channels': [(w, f'/rover/{w}/current') for w in CAL_DRIVE_ORDER],
         'steps': [
-            'Wheels still (the Teensy also stops the drive motors during the ~2 s measurement).',
-            'Best: RoboClaw motor power OFF, Teensy + sensors on, so no holding current flows.',
+            'Rover on flat ground or on the stand, wheels still (the Teensy also stops the',
+            'drive motors during the ~2 s measurement).',
+            'Not sure a reading is offset or real holding current? Unplug that motor\'s lead',
+            '(motor side of its sensor) and watch roxey sensors first.',
         ],
     },
     'arms': {

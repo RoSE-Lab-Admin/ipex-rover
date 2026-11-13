@@ -47,10 +47,11 @@ class EnergyMeter(Node):
             topics[name] = (f'/rover/{wheel}/voltage', f'/rover/{wheel}/current')
 
         # Arm driver supplies: V = supply voltage, I = supply current.
+        # Drums: P = V * |I| (negative idle offset counted as draw).
         for arm in ARMS:
             for part in ARM_PARTS:
                 name = f'{arm}/{part}'
-                channels.append(Channel(name=name, group=arm))
+                channels.append(Channel(name=name, group=arm, abs_current=(part == 'drum')))
                 topics[name] = (f'/rover/{arm}/{part}/voltage',
                                 f'/rover/{arm}/{part}/current')
 

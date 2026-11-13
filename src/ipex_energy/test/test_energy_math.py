@@ -37,6 +37,25 @@ def test_braking_returns_power():
     assert math.isclose(ch.power_w, -20.0)
 
 
+def test_drum_abs_current():
+    # Drum channel: P = V * |I|; a negative idle reading counts as draw.
+    ch = Channel(name='a', group='arm', abs_current=True)
+    acc = EnergyAccumulator(channels=[ch])
+    for k in range(11):
+        feed(acc, 26.5, -0.08, k * 0.1)
+    assert math.isclose(ch.power_w, 26.5 * 0.08)
+    assert math.isclose(ch.energy_j, 26.5 * 0.08, rel_tol=1e-9)   # 1.0 s
+    feed(acc, 26.5, 0.4, 1.1)    # drum spinning
+    assert math.isclose(ch.power_w, 26.5 * 0.4)
+
+
+def test_drive_channel_keeps_negative_current():
+    # Default channel (drive): no floor, braking stays negative.
+    acc, ch = make()
+    feed(acc, 10.0, -0.5, 0.0)
+    assert math.isclose(ch.power_w, -5.0)
+
+
 def test_returned_energy_subtracts():
     acc, ch = make()
     for k in range(11):          # 1 s drawing 20 W

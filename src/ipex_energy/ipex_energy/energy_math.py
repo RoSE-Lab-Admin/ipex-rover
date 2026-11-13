@@ -6,6 +6,11 @@ sets every sign so this holds:
   - Drive motors: V = battery V x PWM duty and I = motor current, both
     signed in the wheel frame (+ = pushing the rover forward).
   - Arm supplies: V = supply voltage, I = supply current, + when drawing.
+    Drum channels set abs_current = True: P = V * |I|, so a negative idle
+    offset counts as draw instead of negative energy (user choice
+    2026-11-13; an offset of x A adds about |x| * V of phantom power, so
+    keep the drum zeros calibrated with `roxey cal arms`). Shoulders and
+    drive use the signed current (drive braking is real).
 
 Energy is integrated with the trapezoid rule between steps. A channel whose
 voltage or current is missing, NaN, or older than the stale timeout counts
@@ -30,6 +35,7 @@ class Channel:
     power_w: float = 0.0
     energy_j: float = 0.0
     stale: bool = True
+    abs_current: bool = False        # True: P = V * |I| (drums)
 
 
 @dataclass
@@ -64,7 +70,8 @@ class EnergyAccumulator:
         if not (fresh and valid):
             return 0.0, True
 
-        return ch.voltage * ch.current, False
+        current = abs(ch.current) if ch.abs_current else ch.current
+        return ch.voltage * current, False
 
     def step(self, now):
         """Recompute power and integrate energy up to time `now` (seconds)."""
