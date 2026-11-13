@@ -8,6 +8,7 @@
   roxey runs [-n 20]                         recent primitive results (run log)
   roxey record NAME [--duration S]           record a bag (Ctrl+C to stop)
   roxey energy [--once | --reset]            live power / energy
+  roxey sensors [--window 5]                 live V / I / P of every sensor (sanity checks)
   roxey home                                 home (calibrate) both arms  -- ARMS MOVE
   roxey stop                                 all stop
 
@@ -421,6 +422,97 @@ def cmd_energy(args):
 
 
 # ============================================================================
+# sensors (live raw V / I / P per channel, for sanity checks)
+# ============================================================================
+
+SENSOR_CHANNELS = (
+    [(f'drive/{w}', f'/rover/{w}') for w in ('front_left', 'front_right', 'back_left', 'back_right')] +
+    [(f'{a}/{p}', f'/rover/{a}/{p}') for a in ('rear_arm', 'front_arm') for p in ('drum', 'shoulder')]
+)
+SENSOR_STALE_S = 0.5
+
+
+class _Stat:
+    """Latest value, rolling-window mean, and min / max since start."""
+
+    def __init__(self, window_s):
+        self.window_s = window_s
+        self.reset()
+
+    def reset(self):
+        self.value, self.t = math.nan, -math.inf
+        self.recent = []            # (t, value) inside the window
+        self.lo, self.hi = math.inf, -math.inf
+
+    def add(self, value, now):
+        self.value, self.t = value, now
+        self.recent.append((now, value))
+        while self.recent and now - self.recent[0][0] > self.window_s:
+            self.recent.pop(0)
+        self.lo, self.hi = min(self.lo, value), max(self.hi, value)
+
+    def mean(self):
+        return sum(v for _, v in self.recent) / len(self.recent) if self.recent else math.nan
+
+
+def _format_sensors(stats, now, window_s, started):
+    def f(x, w, d):
+        return f'{x:{w}.{d}f}' if math.isfinite(x) else f'{"-":>{w}}'
+
+    lines = [f'Roxey sensors  (min/max over {now - started:.0f} s, mean over last {window_s:g} s)'
+             '   Ctrl+C to quit', '',
+             f'{"channel":<20} {"V":>7} {"I now":>8} {"I mean":>8} {"I min":>8} {"I max":>8}'
+             f' {"P W":>8} {"speed":>8}',
+             '-' * 82]
+    for name, _ in SENSOR_CHANNELS:
+        v, i, spd = stats[name]['v'], stats[name]['i'], stats[name].get('speed')
+        stale = now - v.t > SENSOR_STALE_S or now - i.t > SENSOR_STALE_S
+        p = v.value * i.value if not stale else math.nan
+        lines.append(
+            f'{name:<20} {f(v.value, 7, 2)} {f(i.value, 8, 3)} {f(i.mean(), 8, 3)} '
+            f'{f(i.lo, 8, 3)} {f(i.hi, 8, 3)} {f(p, 8, 2)} '
+            f'{f(spd.value, 8, 3) if spd else "":>8}{"  STALE" if stale else ""}')
+        if name == 'drive/back_right':
+            lines.append('')
+    lines += ['', 'Drive V = battery x duty (0 when stopped, so an I offset gives 0 W at rest).',
+              'Drive speed is the wheel speed from the encoders. Arm V = supply voltage.']
+    return '\n'.join(lines)
+
+
+def cmd_sensors(args):
+    rclpy = _init_ros()
+    from rclpy.node import Node
+    from std_msgs.msg import Float32
+
+    node = Node('roxey_sensors')
+    stats = {}
+    for name, prefix in SENSOR_CHANNELS:
+        stats[name] = {'v': _Stat(args.window), 'i': _Stat(args.window)}
+        topics = [('v', f'{prefix}/voltage'), ('i', f'{prefix}/current')]
+        if name.startswith('drive/'):
+            stats[name]['speed'] = _Stat(args.window)
+            topics.append(('speed', f'{prefix}/speed'))
+        for key, topic in topics:
+            node.create_subscription(
+                Float32, topic,
+                lambda m, s=stats[name][key]: s.add(float(m.data), time.monotonic()), 10)
+
+    started = time.monotonic()
+    next_print = 0.0
+    try:
+        while True:
+            rclpy.spin_once(node, timeout_sec=0.05)
+            now = time.monotonic()
+            if now >= next_print:
+                print('\033[2J\033[H' + _format_sensors(stats, now, args.window, started), flush=True)
+                next_print = now + args.period
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        _shutdown(rclpy, node)
+
+
+# ============================================================================
 # home / stop
 # ============================================================================
 
@@ -487,6 +579,11 @@ def build_parser():
     p.add_argument('--once', action='store_true', help='print one snapshot and exit')
     p.add_argument('--reset', action='store_true', help='restart the energy counters')
     p.set_defaults(func=cmd_energy)
+
+    p = sub.add_parser('sensors', help='live V / I / P of every drive and arm sensor')
+    p.add_argument('--window', type=float, default=5.0, help='seconds for the I mean (default 5)')
+    p.add_argument('--period', type=float, default=0.5, help='screen refresh, s (default 0.5)')
+    p.set_defaults(func=cmd_sensors)
 
     p = sub.add_parser('home', help='home (calibrate) both arms -- ARMS MOVE')
     p.set_defaults(func=cmd_topic('/ipex/home_arms', 'Homing arms.'))
