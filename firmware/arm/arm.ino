@@ -119,11 +119,11 @@ unsigned long armStepHalfPeriodUs = ARM_STEP_HALF_PERIOD_US_DEFAULT;
 const unsigned long JOG_TIMEOUT_MS = 250;    // No keepalive within this -> stop
 
 // --- DRUM ---
-// Drum TB6600s at 1/4 step = 800 pulses/motor rev (MOTOR_STEPS_PER_REV above is the ARM, 400).
-// 800 x 80:1 gearbox = 64000 steps/drum rev -> 1 drum RPM = 1066.7 steps/s.
+// Drum TB6600s at 1/8 step = 1600 pulses/motor rev (MOTOR_STEPS_PER_REV above is the ARM, 400).
+// 1600 x 80:1 gearbox = 128000 steps/drum rev -> 1 drum RPM = 2133.3 steps/s.
 // Must match drum_motor_steps_per_rev (ipex.ros2_control.xacro, teleop.yaml) and library.py.
-const long DRUM_MAX_STEPS_S = 9600;          // = 9.0 drum RPM
-const float DRUM_ACCEL_STEPS_S2 = 3000.0;    // = 2.8 drum RPM/s (same ramp as 1500 at 1/2 step)
+const long DRUM_MAX_STEPS_S = 19200;          // = 9.0 drum RPM
+const float DRUM_ACCEL_STEPS_S2 = 6000.0;    // = 2.8 drum RPM/s (same ramp as 1500 at 1/2 step)
 const unsigned int DRUM_MIN_PULSE_US = 10;   // TB6600 needs a few us; AccelStepper default is 1 us
 
 const unsigned long TELEMETRY_INTERVAL_MS = 100;

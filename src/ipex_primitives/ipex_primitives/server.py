@@ -67,7 +67,7 @@ CONFIG_DEFAULTS = {
     'stall_time_s': 1.0,
     'drum_dig_sign_front': -1.0,
     'drum_dig_sign_rear': -1.0,
-    'drum_max_rad_s': 9600.0 * 2.0 * math.pi / (800.0 * 80.0),   # 9600 steps/s = 9.0 drum RPM
+    'drum_max_rad_s': 19200.0 * 2.0 * math.pi / (1600.0 * 80.0),   # 19200 steps/s = 9.0 drum RPM
     'drum_spinup_s': 1.0,
     'drum_stop_wait_s': 3.0,        # max wait for the wheels to stop before drums stop
     'drum_stop_delay_s': 0.5,       # drums keep spinning this long after the wheels stop

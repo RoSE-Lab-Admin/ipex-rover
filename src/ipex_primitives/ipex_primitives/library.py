@@ -27,12 +27,12 @@ from ipex_primitives.params import Param
 DEG = math.pi / 180.0
 ARM_CHOICES = ('front', 'rear', 'both')
 # Drum speeds are at the DRUM (after the 80:1 gearbox). drum_steps_s is the
-# motor step rate the firmware takes: 800 steps/motor rev (drum TB6600 at 1/4 step,
-# since 2026-11-17) x 80 = 64000 steps/drum rev. Must match ipex.ros2_control.xacro.
-DRUM_STEPS_PER_REV = 800.0 * 80.0
+# motor step rate the firmware takes: 1600 steps/motor rev (drum TB6600 at 1/8 step,
+# since 2026-11-17) x 80 = 128000 steps/drum rev. Must match ipex.ros2_control.xacro.
+DRUM_STEPS_PER_REV = 1600.0 * 80.0
 DRUM_STEPS_TO_RAD_S = 2.0 * math.pi / DRUM_STEPS_PER_REV
 DRUM_RPM_TO_RAD_S = 2.0 * math.pi / 60.0
-DEFAULT_DRUM_RAD_S = 3.75 * DRUM_RPM_TO_RAD_S           # 3.75 drum RPM (= 4000 steps/s)
+DEFAULT_DRUM_RAD_S = 3.75 * DRUM_RPM_TO_RAD_S           # 3.75 drum RPM (= 8000 steps/s)
 
 
 def arms_of(arm):
