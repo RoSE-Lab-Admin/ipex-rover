@@ -41,8 +41,8 @@ DEFAULT_PARAMS = {
     'wheel_separation': 0.582,
 
     'drum_rpm_step': 1.0,              # drum RPM per D-pad press
-    'drum_max_steps_s': 3200.0,        # firmware cap (DRUM_MAX_STEPS_S) = 6.0 drum RPM
-    'drum_motor_steps_per_rev': 400.0,  # firmware MOTOR_STEPS_PER_REV
+    'drum_max_steps_s': 9600.0,        # firmware cap (DRUM_MAX_STEPS_S) = 9.0 drum RPM
+    'drum_motor_steps_per_rev': 800.0,  # drum TB6600 pulses/rev (1/4 step)
     'drum_gear_ratio': 80.0,           # motor turns per drum turn
     'front_drum_direction': -1.0,
     'rear_drum_direction': -1.0,

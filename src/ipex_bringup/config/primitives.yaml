@@ -31,7 +31,7 @@ primitive_server:
     # again 2026-10-28 after testbed runs showed the drums digging backwards.
     drum_dig_sign_front: -1.0
     drum_dig_sign_rear: -1.0
-    drum_max_rad_s: 0.62832       # at the drum: 3200 motor steps/s (firmware cap) / 80:1 = 6.0 drum RPM
+    drum_max_rad_s: 0.94248       # at the drum: 9600 motor steps/s (firmware cap, 800/rev) / 80:1 = 9.0 drum RPM
     drum_spinup_s: 1.0            # excavate: drums spin this long before the arms lower
     drum_stop_wait_s: 3.0         # on exit: wait (max) for odometry to show the wheels stopped...
     drum_stop_delay_s: 0.5        # ...then this long before the drums stop (drums stop last)
