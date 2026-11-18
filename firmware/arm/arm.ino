@@ -16,13 +16,34 @@
 // drums keep stepping during every arm wait; hold-to-jog with timeout.
 //
 // BRAKE INTERLOCK (safety-critical):
-//   - armStepPulse() refuses to step unless the brake was released at least
-//     BRAKE_RELEASE_MS ago.
+//   1. Never step with the brake engaged: armStepPulse() refuses unless the
+//      brake was released at least BRAKE_RELEASE_MS ago AND the relay output
+//      reads back HIGH (released) right now.
 //   - Step loops exit only between pulses, so step pins are LOW on exit.
-//   - engageBrake() refuses while any step loop is running (inStepLoop), and
-//     waits SETTLE_MS after the last step before engaging.
+//   2. Never engage the brake on a motor commanded to move: engageBrake()
+//      refuses while any step loop is running (inStepLoop: move, jog, homing,
+//      hold) or a step pin is HIGH, and waits SETTLE_MS after the LAST step.
 //   - Every move, jog, and homing run ends the same way: exit loop -> settle
 //     -> engage. A new move/jog then starts fresh: release -> step -> ...
+//
+// HOLD MODE (depth hold while digging; brake OFF, motors hold the arm):
+//   - HOLD ON enters it (homed, not homing): brake released ONCE, then the arm
+//     is held at a target by closed loop on the motor encoder: whenever the
+//     encoder is >= 1 step from the target, step toward it. ARM / STEP / JOG
+//     move the target with no brake cycle.
+//   - HOLD ON must be repeated (keepalive); none within HOLD_TIMEOUT_MS, HOLD
+//     OFF, STOP, or a fault -> stop stepping -> settle -> engage brake, then
+//     normal behaviour (HOLD_DONE <reason> <deg>).
+//   - Slip guard: the encoder must follow the commanded steps. If they differ
+//     by more than HOLD_SLIP_DEG (the load back-drove or stalled the motors),
+//     the brake engages (HOLD_DONE SLIP).
+//   - After a hold ends for any reason except HOLD OFF, HOLD ON is ignored
+//     until the Pi has stopped sending it for HOLD_TIMEOUT_MS (latched), so
+//     a fault can't be followed straight away by another brake release.
+//   - Every loop the brake relay must still be driven to "released" (else
+//     FAULT). Soft limits are checked before every step. Spring brake: power
+//     loss or a Teensy reset engages it.
+//   - The two interlocks below still apply to hold mode unchanged.
 //
 // JOG SAFETY:
 //   - Jog continues only while JOG <dir> keepalives arrive; none within
@@ -42,6 +63,9 @@
 //                     if a move is running, else to the current angle.
 //   JOG UP|DOWN       Start / keep alive a jog in that direction.
 //   JOG STOP          End a jog (button released).
+//   HOLD ON           Enter / keep alive hold mode (see HOLD MODE). ARM, STEP and
+//                     JOG then move the held target without cycling the brake.
+//   HOLD OFF          Leave hold mode: stop, settle, engage brake.
 //   DRUM <steps_s>    Drum speed, +/-DRUM_MAX_STEPS_S. Continuous (no timeout).
 //                     Applied immediately, does not interrupt the arm.
 //   ARM_SPEED <deg_s> Arm speed for moves and jogs, clamped to
@@ -56,9 +80,12 @@
 //                                        reason: RELEASED|TIMEOUT|LIMIT|
 //                                                CONFLICT|INTERRUPTED|FAULT
 //   JOG_LIMIT <deg>                      Jog refused at limit (brake never released)
+//   HOLD_START <deg>                     Hold mode on, brake released
+//   HOLD_DONE <reason> <deg>             Hold mode over, brake engaged
+//                                        reason: RELEASED|TIMEOUT|STOP|SLIP|FAULT
 //   STOPPED                              Stop complete, brake engaged
 //   ARM_SPEED <deg_s>                    Arm speed now in use (reply to ARM_SPEED)
-//   STATE <homed> <arm_deg> <IDLE|MOVING|JOGGING|HOMING> <drum_steps_s>  10 Hz
+//   STATE <homed> <arm_deg> <IDLE|MOVING|JOGGING|HOMING|HOLDING> <drum_steps_s>  10 Hz
 //   ERR NOT_HOMED | ERR BUSY | ERR UNKNOWN_COMMAND | ERR BRAKE_NOT_RELEASED
 //   # <text>                             Info; Pi ignores
 // =============================================================================
@@ -118,6 +145,12 @@ unsigned long armStepHalfPeriodUs = ARM_STEP_HALF_PERIOD_US_DEFAULT;
 // --- JOG ---
 const unsigned long JOG_TIMEOUT_MS = 250;    // No keepalive within this -> stop
 
+// --- HOLD MODE ---
+// Chosen values (not hardware specs): the Pi sends HOLD ON every ~100 ms.
+const unsigned long HOLD_TIMEOUT_MS = 500;   // No HOLD ON within this -> brake
+const float HOLD_SLIP_DEG = 1.0;             // Encoder vs commanded steps -> brake
+const unsigned long DIR_SETUP_US = 20;       // DIR change -> first step (drivers need ~5 us)
+
 // --- DRUM ---
 // Drum TB6600s at 1/8 step = 1600 pulses/motor rev (MOTOR_STEPS_PER_REV above is the ARM, 400).
 // 1600 x 80:1 gearbox = 128000 steps/drum rev -> 1 drum RPM = 2133.3 steps/s.
@@ -139,12 +172,12 @@ bool isDrumMoving = false;
 long drumCommand = 0;
 
 // Arm activity, for telemetry and command gating.
-enum ArmActivity { ACT_IDLE, ACT_MOVING, ACT_JOGGING, ACT_HOMING };
+enum ArmActivity { ACT_IDLE, ACT_MOVING, ACT_JOGGING, ACT_HOMING, ACT_HOLDING };
 ArmActivity armActivity = ACT_IDLE;
 
 // Commands that run the arm are queued here and executed by loop().
 // STOP, ARM and JOG also act as interrupts for an in-progress move.
-enum PendingCmd { CMD_NONE, CMD_ARM, CMD_JOG, CMD_CAL, CMD_STOP };
+enum PendingCmd { CMD_NONE, CMD_ARM, CMD_JOG, CMD_CAL, CMD_STOP, CMD_HOLD };
 PendingCmd pendingCmd = CMD_NONE;
 float pendingArmDeg = 0.0;
 int pendingJogDir = 0;
@@ -159,6 +192,17 @@ const char *jogStopReason = "RELEASED";
 unsigned long lastJogKeepaliveMs = 0;  // Last JOG <dir> for the active jog
 unsigned long lastJogRxMs = 0;         // Last JOG line of any kind
 int jogLatch = 0;                      // 0 none, +1/-1 that dir, 2 both
+
+// Hold mode state
+float holdTargetDeg = 0.0;             // Angle the arm is held at
+bool holdTargetQueued = false;         // ARM/STEP arrived with HOLD ON still queued
+float holdQueuedTargetDeg = 0.0;
+bool holdOffRequested = false;
+unsigned long lastHoldKeepaliveMs = 0;
+bool holdLatched = false;              // A hold just ended: ignore HOLD ON until it stops
+unsigned long lastHoldRxMs = 0;        // Last HOLD ON line of any kind
+int holdJogDir = 0;                    // Jog inside hold mode: +1/-1, 0 none
+unsigned long holdJogKeepaliveMs = 0;
 
 const size_t RX_BUFFER_SIZE = 64;
 char rxBuffer[RX_BUFFER_SIZE];
@@ -218,12 +262,19 @@ void releaseBrake() {
   waitMsServicingDrum(BRAKE_RELEASE_MS);
 }
 
+unsigned long lastArmStepUs = 0;     // Time of the last arm step pulse
+
 bool engageBrake() {
-  if (inStepLoop) {
-    Serial.println("# REFUSED brake engage: arm step loop active");
+  // Never lock the brake on a moving motor: no step loop may be running
+  // (a move, jog, homing run or hold), and step pins must be LOW.
+  if (inStepLoop || digitalRead(MOTOR_ENC_STEP) == HIGH || digitalRead(MOTOR_BRK_STEP) == HIGH) {
+    Serial.println("# REFUSED brake engage: arm motor commanded to move");
     return false;
   }
   waitMsServicingDrum(SETTLE_MS);  // Motors stopped and settled before locking
+  while (micros() - lastArmStepUs < SETTLE_MS * 1000UL) {   // Settle counted from the LAST step
+    serviceDrum();
+  }
   digitalWrite(BRAKE_RELAY, LOW);  // Transistor OFF -> Spring-locks Brake
   brakeReleased = false;
   waitMsServicingDrum(BRAKE_ENGAGE_MS);
@@ -257,10 +308,14 @@ void setArmDirection(bool up) {
 // Ends with step pins LOW. Refuses (returns false) unless the brake has been
 // released for at least BRAKE_RELEASE_MS.
 bool armStepPulse() {
-  if (!brakeReleased || millis() - brakeReleasedAtMs < BRAKE_RELEASE_MS) {
+  // Never step against the brake: the release must be recorded, old enough,
+  // AND the relay output must actually be driven HIGH (released) right now.
+  if (!brakeReleased || millis() - brakeReleasedAtMs < BRAKE_RELEASE_MS ||
+      digitalRead(BRAKE_RELAY) != HIGH) {
     Serial.println("ERR BRAKE_NOT_RELEASED");
     return false;
   }
+  lastArmStepUs = micros();
 
   digitalWrite(MOTOR_ENC_STEP, HIGH);
   digitalWrite(MOTOR_BRK_STEP, HIGH);
@@ -290,6 +345,7 @@ const char *activityName() {
     case ACT_MOVING:  return "MOVING";
     case ACT_JOGGING: return "JOGGING";
     case ACT_HOMING:  return "HOMING";
+    case ACT_HOLDING: return "HOLDING";
     default:          return "IDLE";
   }
 }
@@ -328,6 +384,17 @@ void handleJogLine(int dir) {
     jogLatch = 0;
   }
   lastJogRxMs = now;
+
+  // Hold mode: a jog moves the held target (no brake cycle).
+  if (armActivity == ACT_HOLDING) {
+    if (dir == 0 || (holdJogDir != 0 && dir != holdJogDir)) {
+      holdJogDir = 0;                   // Released or conflicting: stop where it is
+    } else {
+      holdJogDir = dir;
+      holdJogKeepaliveMs = now;
+    }
+    return;
+  }
 
   if (dir == 0) {                       // JOG STOP
     jogLatch = 0;
@@ -413,9 +480,46 @@ void handleLine(char *line) {
   else if (strcmp(line, "JOG STOP") == 0) {
     handleJogLine(0);
   }
+  else if (strcmp(line, "HOLD ON") == 0) {
+    const unsigned long now = millis();
+    // After any hold ends (slip, stop, timeout, HOLD OFF) the brake stays on
+    // until HOLD ON has stopped for longer than HOLD_TIMEOUT_MS: a fresh request
+    // is needed, so a Pi still sending keepalives can't re-release the brake.
+    if (holdLatched && now - lastHoldRxMs > HOLD_TIMEOUT_MS) {
+      holdLatched = false;
+    }
+    lastHoldRxMs = now;
+    if (holdLatched) {
+      // Ignored: brake stays engaged.
+    } else if (armActivity == ACT_HOLDING || pendingCmd == CMD_HOLD) {
+      lastHoldKeepaliveMs = now;         // Keepalive
+    } else if (armActivity == ACT_HOMING) {
+      Serial.println("ERR BUSY");
+    } else if (!isHomed) {
+      Serial.println("ERR NOT_HOMED");
+    } else if (pendingCmd != CMD_STOP) {
+      pendingCmd = CMD_HOLD;             // Interrupts a move / jog (brakes), then holds
+      holdTargetQueued = false;
+      lastHoldKeepaliveMs = millis();
+    }
+  }
+  else if (strcmp(line, "HOLD OFF") == 0) {
+    holdLatched = false;                 // Explicit release: the next HOLD ON may start a hold
+    if (armActivity == ACT_HOLDING) {
+      holdOffRequested = true;
+    }
+    if (pendingCmd == CMD_HOLD) {
+      pendingCmd = CMD_NONE;
+    }
+  }
   else if (strncmp(line, "ARM ", 4) == 0) {
     if (armActivity == ACT_HOMING) {
       Serial.println("ERR BUSY");
+    } else if (armActivity == ACT_HOLDING) {
+      holdTargetDeg = clampArmDeg(atof(line + 4));   // Retarget, brake stays off
+    } else if (pendingCmd == CMD_HOLD) {
+      holdQueuedTargetDeg = clampArmDeg(atof(line + 4));
+      holdTargetQueued = true;
     } else if (pendingCmd != CMD_STOP) {
       pendingCmd = CMD_ARM;
       pendingArmDeg = atof(line + 4);
@@ -426,6 +530,12 @@ void handleLine(char *line) {
       Serial.println("ERR BUSY");
     } else if (!isHomed) {
       Serial.println("ERR NOT_HOMED");
+    } else if (armActivity == ACT_HOLDING) {
+      holdTargetDeg = clampArmDeg(holdTargetDeg + atof(line + 5));
+    } else if (pendingCmd == CMD_HOLD) {
+      const float base = holdTargetQueued ? holdQueuedTargetDeg : getPhysicalArmDegrees();
+      holdQueuedTargetDeg = clampArmDeg(base + atof(line + 5));
+      holdTargetQueued = true;
     } else if (pendingCmd != CMD_STOP) {
       // Accumulate onto whatever target is already in flight.
       float base;
@@ -477,7 +587,8 @@ void pollSerial() {
 bool moveInterrupted() {
   pollSerial();
   sendTelemetryIfDue();
-  return pendingCmd == CMD_STOP || pendingCmd == CMD_ARM || pendingCmd == CMD_JOG;
+  return pendingCmd == CMD_STOP || pendingCmd == CMD_ARM || pendingCmd == CMD_JOG ||
+         pendingCmd == CMD_HOLD;
 }
 
 bool homingInterrupted() {
@@ -609,7 +720,7 @@ void jogArm(int dir) {
     pollSerial();
     sendTelemetryIfDue();
 
-    if (pendingCmd == CMD_STOP || pendingCmd == CMD_ARM) {
+    if (pendingCmd == CMD_STOP || pendingCmd == CMD_ARM || pendingCmd == CMD_HOLD) {
       jogStopReason = "INTERRUPTED";
       break;
     }
@@ -645,6 +756,89 @@ void jogArm(int dir) {
 
   Serial.print("JOG_DONE ");
   Serial.print(jogStopReason);
+  Serial.print(' ');
+  Serial.println(getPhysicalArmDegrees(), 2);
+}
+
+// Hold mode: brake released once; the motors hold the arm at holdTargetDeg by
+// closed loop on the encoder until HOLD OFF / STOP / keepalive timeout / slip.
+void holdArm() {
+  if (!isHomed) {
+    Serial.println("ERR NOT_HOMED");
+    return;
+  }
+
+  const float startDeg = getPhysicalArmDegrees();
+  holdTargetDeg = holdTargetQueued ? holdQueuedTargetDeg : startDeg;
+  holdTargetQueued = false;
+  holdOffRequested = false;
+  holdJogDir = 0;
+  lastHoldKeepaliveMs = millis();
+
+  armActivity = ACT_HOLDING;
+  releaseBrake();
+  Serial.print("HOLD_START ");
+  Serial.println(startDeg, 2);
+
+  const float stepDeg = 1.0 / STEPS_PER_ARM_DEG;
+  float expectedDeg = startDeg;          // Encoder should follow the commanded steps
+  int lastDir = 0;
+  const char *reason = "RELEASED";
+
+  inStepLoop = true;
+  while (true) {
+    pollSerial();
+    sendTelemetryIfDue();
+    serviceDrum();
+
+    if (pendingCmd == CMD_STOP) { reason = "STOP"; break; }
+    if (holdOffRequested) { reason = "RELEASED"; break; }
+    if (millis() - lastHoldKeepaliveMs > HOLD_TIMEOUT_MS) { reason = "TIMEOUT"; break; }
+    // A queued HOLD ON while holding is only a keepalive; ARM/JOG/CAL can't queue here.
+    if (pendingCmd == CMD_HOLD) pendingCmd = CMD_NONE;
+    // The brake relay must still be driven to "released"; otherwise stop at once.
+    if (!brakeReleased || digitalRead(BRAKE_RELAY) != HIGH) { reason = "FAULT"; break; }
+
+    const float cur = getPhysicalArmDegrees();
+    if (fabs(cur - expectedDeg) > HOLD_SLIP_DEG) { reason = "SLIP"; break; }
+
+    // Jog inside hold: keep the target one step ahead in the jog direction.
+    if (holdJogDir != 0) {
+      if (millis() - holdJogKeepaliveMs > JOG_TIMEOUT_MS || atLimit(holdJogDir, cur)) {
+        holdJogDir = 0;
+        holdTargetDeg = clampArmDeg(cur);
+      } else {
+        holdTargetDeg = clampArmDeg(cur + holdJogDir * 2.0 * stepDeg);
+      }
+    }
+
+    const float err = holdTargetDeg - cur;
+    if (fabs(err) < stepDeg) continue;   // Within one step: hold still
+
+    const int dir = (err > 0) ? 1 : -1;
+    if (atLimit(dir, cur)) continue;     // Never step past a soft limit
+    if (dir != lastDir) {
+      setArmDirection(dir > 0);
+      waitUsServicingDrum(DIR_SETUP_US);
+      lastDir = dir;
+    }
+    if (!armStepPulse()) { reason = "FAULT"; break; }
+    expectedDeg += dir * stepDeg;
+  }
+
+  // Step loop exited: step pins are LOW. Settle, then lock.
+  inStepLoop = false;
+  engageBrake();
+  armActivity = ACT_IDLE;
+  holdJogDir = 0;
+  holdOffRequested = false;
+  if (pendingCmd == CMD_JOG) pendingCmd = CMD_NONE;   // Stale jog from inside the hold
+  // Anything but an explicit HOLD OFF latches: no new hold until HOLD ON stops.
+  holdLatched = (strcmp(reason, "RELEASED") != 0);
+  lastHoldRxMs = millis();
+
+  Serial.print("HOLD_DONE ");
+  Serial.print(reason);
   Serial.print(' ');
   Serial.println(getPhysicalArmDegrees(), 2);
 }
@@ -710,6 +904,9 @@ void loop() {
       break;
     case CMD_JOG:
       jogArm(jogDir);
+      break;
+    case CMD_HOLD:
+      holdArm();
       break;
     case CMD_CAL: {
       // Homing always runs at the default speed; restore the set speed after.

@@ -236,6 +236,14 @@ class PrimitiveContext:
     def depth_hold_status(self, arm, values):
         self.s.depth_hold_pub[arm].publish(Float64MultiArray(data=[float(v) for v in values]))
 
+    def arm_hold(self, arm, on):
+        """Brake-off hold mode request (keepalive while True; plugin -> HOLD ON / HOLD OFF)."""
+        self.s.hold_pub[arm].publish(Bool(data=bool(on)))
+
+    def arm_holding(self, arm):
+        """True while the arm Teensy reports hold mode (brake released, motors holding)."""
+        return self.s.holding.get(arm, False)
+
     def warn(self, message):
         """Log a warning, at most every 2 s per message."""
         self.s.get_logger().warn(message, throttle_duration_sec=2.0)
@@ -268,6 +276,7 @@ class PrimitiveServer(Node):
         self.homed = {}
         self.drive_current = {}
         self.drive_cmd = None
+        self.holding = {}
         self.imu_lock = threading.Lock()
         self.pitch = PitchFilter(self.cfg['pitch_filter_tau_s'])
 
@@ -282,6 +291,10 @@ class PrimitiveServer(Node):
             self.create_subscription(
                 Bool, f'/ipex/{arm}_arm/homed',
                 lambda m, a=arm: self.homed.__setitem__(a, m.data), latched, callback_group=g)
+        for arm in ('front', 'rear'):
+            self.create_subscription(
+                Bool, f'/ipex/{arm}_arm/holding',
+                lambda m, a=arm: self.holding.__setitem__(a, m.data), latched, callback_group=g)
         for wheel in WHEELS:
             self.create_subscription(
                 Float32, f'/rover/{wheel}/current',     # ACS712, not roboclaw_current
@@ -300,6 +313,8 @@ class PrimitiveServer(Node):
         self.speed_pub = {a: self.create_publisher(Float64, f'/ipex/{a}_arm/speed', 10)
                           for a in ('front', 'rear')}
         self.drum_pub = {a: self.create_publisher(Float64MultiArray, f'/{a}_drum_controller/commands', 10)
+                         for a in ('front', 'rear')}
+        self.hold_pub = {a: self.create_publisher(Bool, f'/ipex/{a}_arm/hold', 10)
                          for a in ('front', 'rear')}
         self.depth_hold_pub = {
             a: self.create_publisher(Float64MultiArray, f'/ipex/{a}_arm/depth_hold', 10)

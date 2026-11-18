@@ -54,6 +54,14 @@ namespace ipex_hardware
 //       Persists until changed (also applies to jogs). Teensy clamps to
 //       [0.5, 5.625] deg/s; default after Teensy reset is 5.625. Sent before a
 //       goto in the same cycle.
+//   /ipex/<arm_name>/hold     (std_msgs/Bool, sub) brake-off hold mode (depth hold).
+//       true must be republished (like jog); while fresh (hold_timeout_ms),
+//       "HOLD ON" keepalives go to the Teensy every hold_keepalive_ms (Teensy
+//       brakes after 500 ms without). false / stale -> "HOLD OFF" once.
+//       After ALL STOP or a hold that ended other than by HOLD OFF (SLIP,
+//       TIMEOUT, STOP, FAULT), requests are ignored until hold goes false.
+//   /ipex/<arm_name>/holding  (std_msgs/Bool, pub, transient local) Teensy in hold
+//       mode (brake released, motors holding), from STATE; published on change.
 class IpexArmSystem : public hardware_interface::SystemInterface
 {
 public:
@@ -115,6 +123,17 @@ private:
   std::chrono::milliseconds jog_timeout_{200};
   std::chrono::milliseconds jog_keepalive_{100};
 
+  // Brake-off hold mode: latest request and when it arrived (steady clock, ns).
+  std::atomic<bool> hold_requested_{false};
+  std::atomic<int64_t> hold_stamp_ns_{0};
+  bool hold_sent_ = false;                     // HOLD ON keepalives being sent
+  bool hold_blocked_ = false;                  // After STOP / fault: wait for release
+  std::atomic<bool> hold_fault_{false};        // HOLD_DONE <not RELEASED> seen (from read)
+  bool holding_ = false;                       // Teensy reports HOLDING
+  std::chrono::steady_clock::time_point last_hold_sent_;
+  std::chrono::milliseconds hold_timeout_{300};
+  std::chrono::milliseconds hold_keepalive_{100};
+
   // Taps: accumulated relative degrees not yet sent.
   std::atomic<double> pending_step_deg_{0.0};
 
@@ -130,7 +149,9 @@ private:
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr step_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr goto_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr speed_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr hold_sub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr homed_pub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr holding_pub_;
 
   // Drum speed as reported by the Teensy (commanded; drums have no encoder):
   // /rover/<arm_name>/drum/steps_s (motor steps/s) and /drum/rpm (drum RPM).
