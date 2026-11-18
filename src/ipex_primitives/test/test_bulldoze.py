@@ -104,5 +104,7 @@ def test_rejects_bad_requests():
     with pytest.raises(PrimitiveFailure):
         run({'distance_m': 0.5, 'speed_mps': 0.0})     # would never get there
     with pytest.raises(PrimitiveFailure):
-        run({'drum_rpm': 10.0})                        # above the drum limit
+        run({'drum_rpm': 13.0})                        # above the 12 RPM drum limit
+    with pytest.raises(PrimitiveFailure):
+        run({'drum_rpm': 4.5})                         # inside the 3-6 RPM stall band
     assert math.isfinite(run({'duration_s': 0.0})[0]['clearance_m'])

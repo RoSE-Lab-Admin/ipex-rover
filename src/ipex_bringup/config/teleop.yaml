@@ -15,6 +15,7 @@
 #                    However the run ends (X, B, or a timeout) it saves each arm's
 #                    angle, drum RPM and crawl speed
 #                    (~/roxey_data/excavation_mode.yaml); the next X starts there.
+# Start            : depth hold on/off (X mode; IMU pitch, see below)
 # Y                : (mode off) reset the saved excavation settings to the defaults.
 #                    Settings (excavate_*) are at the top of ipex_motion/controller.py.
 #
@@ -73,3 +74,22 @@ controller:
     # in firmware/arm/arm.ino), so they are not duplicated here.
     arm_step_deg: 1.0       # Tap step (deg); X mode uses excavate_arm_step_deg (0.5)
     hold_threshold_s: 0.3   # Held longer than this = jog; shorter = tap
+
+    # Depth hold in X mode (IMU pitch; ipex_primitives/depth_hold.py). Start toggles it.
+    # Holding: the arms re-aim as the chassis pitches so each cut stays at the depth
+    # it had when digging began; taps move the dig angle, a jog sets a new depth.
+    # Geometry and limits must match primitives.yaml (see the sources there).
+    excavate_hold_depth: false          # on at start-up
+    excavate_hold_button: 7             # Start
+    arm_pivot_height_m: 0.3208
+    arm_length_m: 0.3786
+    drum_cut_radius_m: 0.149
+    arm_pivot_dist_m: 0.469
+    depth_hold_min_deg: -30.0           # lowest angle the hold commands (dig angles below are raised to it)
+    depth_hold_max_pitch_deg: 4.0
+    depth_hold_max_correction_deg: 10.0
+    depth_hold_max_ratio: 3.0
+    depth_hold_deadband_deg: 0.5
+    depth_hold_min_interval_s: 1.0
+    pitch_filter_tau_s: 1.0
+    imu_stale_s: 0.5

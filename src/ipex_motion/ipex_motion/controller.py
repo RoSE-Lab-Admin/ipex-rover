@@ -7,12 +7,15 @@ import time
 import rclpy
 import yaml
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, DurabilityPolicy
+from rclpy.qos import QoSProfile, DurabilityPolicy, qos_profile_sensor_data
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import JointState, Joy
+from sensor_msgs.msg import Imu, JointState, Joy
 from std_msgs.msg import Bool, Empty, Float64, Float64MultiArray, Int8
+
+from ipex_primitives.depth_hold import (DEPTH_HOLD_DEFAULTS, GEOMETRY_DEFAULTS, DepthHold,
+                                        PitchFilter, pitch_from_quaternion)
 
 
 # Logitech F710 -- X mode (joy_linux). Defaults; overridden by
@@ -79,7 +82,17 @@ DEFAULT_PARAMS = {
     'excavate_lower_timeout_s': 30.0,  # arms not at the dig angle by then -> leave the mode
     'excavate_stop_wait_s': 3.0,       # on exit: max wait for odometry to show wheels stopped
     'excavate_stop_delay_s': 0.5,      # then drums keep spinning this long
+
+    # Depth hold in X mode (IMU pitch; ipex_primitives/depth_hold.py). Start toggles
+    # it (any time; applies from the next dig if not digging). While holding, arm
+    # taps move the dig angle (the angle at the starting pitch) and a jog sets a
+    # new depth where it stops. Geometry + limits must match primitives.yaml.
+    'excavate_hold_depth': False,      # on at start-up?
+    'excavate_hold_button': 7,         # Start (F710 X mode)
+    **GEOMETRY_DEFAULTS,
+    **DEPTH_HOLD_DEFAULTS,
 }
+HOLD_JOG_SETTLE_S = 0.5     # after a jog ends, follow the arm this long before holding again
 
 SHOULDER_JOINTS = {'front': 'front_shoulder_rev', 'rear': 'back_shoulder_rev'}
 STOPPED_MPS = 0.005      # odometry below these = wheels stopped
@@ -173,6 +186,12 @@ class Controller(Node):
         self.create_subscription(
             Odometry, '/diff_drive_controller/odom',
             lambda msg: setattr(self, 'odom', (msg, time.monotonic())), 10)
+        # Depth hold: IMU pitch in, status out (bagged with /ipex/.*).
+        self.create_subscription(Imu, '/imu/data', self.imu_callback, qos_profile_sensor_data)
+        self.depth_hold_pub = {
+            arm: self.create_publisher(Float64MultiArray, f'/ipex/{arm}_arm/depth_hold', 10)
+            for arm in ('front', 'rear')
+        }
         self.excavation_pub = self.create_publisher(Bool, '/ipex/excavation_mode', latched)
         self.excavation_pub.publish(Bool(data=False))
         self.create_timer(0.05, self.excavation_tick)
@@ -199,12 +218,21 @@ class Controller(Node):
         self.dig_target = {}              # arm -> dig angle (deg) this cycle
         self.dig_settings = self.load_dig_settings()
 
+        # Depth hold (X mode)
+        self.pitch = PitchFilter(self.p['pitch_filter_tau_s'])
+        self.hold_enabled = bool(self.p['excavate_hold_depth'])
+        self.holds = {}                   # arm -> DepthHold while digging with hold on
+        self.pitch0 = None                # pitch when the hold started (deg)
+        self.hold_paused_until = {}       # arm -> monotonic time (jogging / just jogged)
+        self.hold_tick = 0
+
         # Previous input states for rising-edge detection.
         self.prev = {
             'a': False,
             'b': False,
             'x': False,
             'y': False,
+            'start': False,
             'dpad_up': False, 'dpad_down': False,
             'dpad_left': False, 'dpad_right': False,
         }
@@ -214,7 +242,8 @@ class Controller(Node):
             f'max speed = {self.max_side_speed:.2f} m/s | '
             f'drum speed = {self.drum_rpm:.1f} RPM (step {self.p["drum_rpm_step"]:g}, '
             f'max {self.drum_max_rpm():.1f}) | '
-            f'X = excavation mode | B = ALL STOP'
+            f'X = excavation mode | Start = depth hold ({"ON" if self.hold_enabled else "off"}) | '
+            f'B = ALL STOP'
         )
 
     # -----------------------------------------------------
@@ -278,6 +307,10 @@ class Controller(Node):
             else:
                 self.get_logger().warn('Y ignored: end excavation mode (X) first.')
 
+        # Start: depth hold on / off.
+        if self.rising('start', self.button(msg, self.p['excavate_hold_button'])):
+            self.toggle_hold()
+
         self.signal_override_if_active(msg, x_pressed)
 
         self.handle_speed_bounds(msg)
@@ -293,6 +326,17 @@ class Controller(Node):
         for arm, joint in SHOULDER_JOINTS.items():
             if joint in positions and math.isfinite(positions[joint]):
                 self.arm_angle[arm] = (math.degrees(positions[joint]), now)
+
+    def imu_callback(self, msg):
+        q = msg.orientation
+        self.pitch.add(math.degrees(pitch_from_quaternion(q.x, q.y, q.z, q.w)), time.monotonic())
+
+    def pitch_deg(self):
+        return self.pitch.get(time.monotonic(), self.p['imu_stale_s'])
+
+    def d_pitch_deg(self):
+        pitch = self.pitch_deg()
+        return None if pitch is None or self.pitch0 is None else pitch - self.pitch0
 
     def arm_angle_deg(self, arm):
         value, t = self.arm_angle.get(arm, (None, -1e9))
@@ -343,6 +387,7 @@ class Controller(Node):
         # they respond again.
         self.release_arm_inputs()
 
+        self.end_hold()
         if self.dig_phase != 'off':
             self.set_arm_speed(self.p['arm_speed_deg_s'])
             self.set_dig_phase('off')
@@ -449,6 +494,13 @@ class Controller(Node):
 
         self.release_arm_inputs()
         self.dig_target = {'front': s['front_deg'], 'rear': s['rear_deg']}
+        if self.hold_enabled:
+            lo = self.p['depth_hold_min_deg']
+            for arm, target in self.dig_target.items():
+                if target < lo:
+                    self.get_logger().warn(
+                        f'Depth hold: {arm} dig angle {target:.2f} deg is below {lo:g}; using {lo:g}.')
+                    self.dig_target[arm] = lo
         crawl_max = self.p['excavate_crawl_max_mps']
         self.crawl_mps = clamp(s['crawl_mps'], -crawl_max, crawl_max)
         self.drum_rpm = drum      # dig = D-pad right
@@ -464,7 +516,10 @@ class Controller(Node):
         # that the arms haven't reached their targets, so keep the targets.
         if self.dig_phase == 'digging':
             for arm in ('front', 'rear'):
-                angle = self.arm_angle_deg(arm)
+                # Holding: save the dig angle (at the starting pitch), not the
+                # pitch-corrected angle the arm is at now.
+                angle = (self.holds[arm].nominal_deg if arm in self.holds
+                         else self.arm_angle_deg(arm))
                 if angle is not None:
                     self.dig_settings[f'{arm}_deg'] = angle
         if self.drum_rpm > 0.0:     # still digging direction
@@ -475,6 +530,7 @@ class Controller(Node):
 
     def stop_excavation(self, reason):
         self.save_run_settings()
+        self.end_hold()
 
         # Arms stay where they are (re-target to the current angle if moving).
         if self.dig_phase == 'lowering':
@@ -509,6 +565,8 @@ class Controller(Node):
                    for a, t in self.dig_target.items()):
                 self.set_arm_speed(self.p['excavate_arm_speed_deg_s'])
                 self.set_dig_phase('digging')
+                if self.hold_enabled:
+                    self.begin_hold()
                 self.get_logger().warn(
                     f'Excavation mode: digging, crawl {self.crawl_mps:.3f} m/s. '
                     f'D-pad L/R drums +/-{self.p["excavate_drum_rpm_step"]:g} RPM, '
@@ -517,6 +575,9 @@ class Controller(Node):
             elif elapsed > self.p['excavate_lower_timeout_s']:
                 self.stop_excavation(
                     f'arms not at the dig angle after {elapsed:.0f} s')
+
+        elif phase == 'digging' and self.holds:
+            self.hold_update(now)
 
         elif phase == 'stopping':
             if self.wheels_stopped_at is None:
@@ -531,6 +592,98 @@ class Controller(Node):
                 self.publish_drums()
                 self.set_dig_phase('off')
                 self.get_logger().warn('Excavation mode off: drums stopped, arms holding.')
+
+    # -----------------------------------------------------
+    # Depth hold (X mode, digging phase)
+    # -----------------------------------------------------
+
+    def toggle_hold(self):
+        self.hold_enabled = not self.hold_enabled
+        if self.dig_phase == 'digging':
+            if self.hold_enabled:
+                self.begin_hold()
+            else:
+                self.end_hold()
+        when = '' if self.dig_phase == 'digging' else ' (from the next dig)'
+        self.get_logger().warn(f'Depth hold {"ON" if self.hold_enabled else "OFF"}{when}.')
+
+    def begin_hold(self):
+        """Pitch now is the zero; each arm holds the depth it cuts now."""
+        pitch = self.pitch_deg()
+        if pitch is None:
+            self.get_logger().warn('Depth hold: no IMU pitch (/imu/data); hold not started.')
+            self.holds = {}
+            return
+        angles = {a: self.arm_angle_deg(a) for a in ('front', 'rear')}
+        if any(v is None for v in angles.values()):
+            self.get_logger().warn('Depth hold: no arm angle feedback; hold not started.')
+            self.holds = {}
+            return
+        lo = self.p['depth_hold_min_deg']
+        low = [a for a, v in angles.items() if v < lo - 0.05]
+        if low:
+            self.get_logger().warn(
+                f'Depth hold: {" and ".join(low)} arm below {lo:g} deg; raise it, then Start again.')
+            self.hold_enabled = False
+            self.holds = {}
+            return
+        self.pitch0 = pitch
+        self.holds = {a: DepthHold(a, v, self.p) for a, v in angles.items()}
+        self.hold_paused_until = {}
+        arms = ', '.join(f'{a} {h.nominal_deg:.2f} deg = {h.target_depth_m() * 100:.1f} cm'
+                         for a, h in self.holds.items())
+        self.get_logger().warn(f'Depth hold ON: {arms} (pitch zero {pitch:+.2f} deg).')
+
+    def end_hold(self):
+        if self.holds:
+            self.get_logger().info('Depth hold stopped; arms stay where they are.')
+        self.holds = {}
+        self.pitch0 = None
+        self.hold_paused_until = {}
+
+    def hold_update(self, now):
+        d_pitch = self.d_pitch_deg()
+        self.hold_tick += 1
+        for arm, h in self.holds.items():
+            # Jogging (or just jogged): follow the arm; the depth where it stops is the new target.
+            if self.arms[arm].jogging or now < self.hold_paused_until.get(arm, 0.0):
+                angle = self.arm_angle_deg(arm)
+                if angle is not None and d_pitch is not None:
+                    h.rebaseline(angle, d_pitch)
+                continue
+            target = h.update(d_pitch, now)
+            if h.warning:
+                self.get_logger().warn(f'{arm} arm depth hold: {h.reason}',
+                                       throttle_duration_sec=2.0)
+            if target is not None:
+                self.goto_pub[arm].publish(Float64(data=float(target)))
+                self.get_logger().info(
+                    f'Depth hold: {arm} arm -> {target:.2f} deg (pitch change {d_pitch:+.2f} deg).')
+            if self.hold_tick % 4 == 0:
+                self.depth_hold_pub[arm].publish(
+                    Float64MultiArray(data=[float(v) for v in h.status()]))
+
+    def hold_tap(self, arm, step):
+        """Tap while holding: move the dig angle; the arm goes to it, pitch-corrected.
+        Returns False if the hold can't place it (caller falls back to a plain step)."""
+        h = self.holds[arm]
+        old = h.nominal_deg
+        new = h.set_nominal(old + step)
+        if abs(new - (old + step)) > 1e-9:
+            self.get_logger().warn(
+                f'{arm.capitalize()} arm: dig angle held at {new:.2f} deg '
+                f'(depth hold limits {h.min_deg:g} .. {h.max_deg:g}).')
+        target = h.compute(self.d_pitch_deg())
+        if target is None:
+            h.set_nominal(old)
+            return False
+        h.last_cmd_deg = target
+        h.last_cmd_t = time.monotonic()
+        self.goto_pub[arm].publish(Float64(data=float(target)))
+        self.get_logger().info(
+            f'{arm.capitalize()} arm: dig angle {new:.2f} deg '
+            f'({h.target_depth_m() * 100:.1f} cm), arm -> {target:.2f} deg.')
+        return True
 
     # -----------------------------------------------------
     # Mapping
@@ -662,6 +815,8 @@ class Controller(Node):
             if arm.jogging:
                 self.jog_pub[arm.name].publish(Int8(data=0))
                 self.get_logger().info(f'{label} arm: jog released.')
+                if arm.name in self.holds:
+                    self.hold_paused_until[arm.name] = time.monotonic() + HOLD_JOG_SETTLE_S
             elif arm.press_start is not None:
                 # Released before the hold threshold: a tap.
                 if now - arm.press_start < self.p['hold_threshold_s']:
@@ -713,6 +868,12 @@ class Controller(Node):
 
         step = direction * self.p[
             'excavate_arm_step_deg' if self.dig_phase != 'off' else 'arm_step_deg']
+        if arm.name in self.holds:
+            if self.hold_tap(arm.name, step):
+                return
+            # The hold can't place it (no pitch / a sanity check): plain step,
+            # then the hold takes the angle the arm stops at as the new depth.
+            self.hold_paused_until[arm.name] = time.monotonic() + 2.0 * HOLD_JOG_SETTLE_S
         self.step_pub[arm.name].publish(Float64(data=step))
         self.get_logger().info(f'{label} arm: step {step:+.2f} deg.')
 

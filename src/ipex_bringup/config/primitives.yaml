@@ -10,11 +10,27 @@ primitive_server:
 
     # Cut depth below the tire tread plane (the rubber between the grousers; no sinkage):
     #   depth = drum_cut_radius - (pivot_height + length*sin(angle))
+    # Geometry must match teleop.yaml (depth hold in X mode).
     arm_pivot_height_m: 0.3208    # pivot above the tread: 0.3183 above base_link + 0.0025 (axle 0.1525, tread radius 0.155).
                                   # Rover check 2026-10-31: -28.7 deg = 1 cm below the tread, measured
     arm_length_m: 0.3786          # shoulder pivot to drum axle (ipex.xacro, both arms)
     drum_cut_radius_m: 0.149      # drum tooth-tip radius (drum meshes)
-    arm_tolerance_deg: 0.5        # "reached" when within this of the target
+    arm_pivot_dist_m: 0.469       # far axle to the shoulder pivot, horizontal (ipex.xacro: 0.46875, both arms)
+
+    # IMU pitch depth hold (excavate hold_depth: true; teleop X mode). Model and checks:
+    # ipex_primitives/depth_hold.py. Must match teleop.yaml.
+    # Hardware: firmware arm limits -40 / +45 deg; arm resolves ~0.009 deg/step
+    # (400 steps x 100:1). Everything below is a chosen or estimated limit, not hardware:
+    depth_hold_min_deg: -30.0           # lowest angle the hold commands (operator limit 2026-11-18; 1.75 cm below the tread)
+    depth_hold_max_pitch_deg: 4.0       # estimate: |pitch change| over this = stop correcting (2.4 x 4 = 9.6 deg < the cap)
+    depth_hold_max_correction_deg: 10.0 # estimate: |arm - dig angle| cap
+    depth_hold_max_ratio: 3.0           # |correction| <= 3 x |pitch change|; geometry needs 1 + A/(L cos a) = 2.3-2.4 at -30..-10 deg
+    depth_hold_deadband_deg: 0.5        # estimate: limits brake cycling, not accuracy
+    depth_hold_min_interval_s: 1.0      # estimate: each move costs ~0.5 s of brake release / engage
+    pitch_filter_tau_s: 1.0             # estimate: tune from a dig bag's /imu/data
+    imu_stale_s: 0.5                    # UM7 update_rate 60 Hz (um7.yaml) -> ~30 missed messages
+
+    arm_tolerance_deg: 0.5       # "reached" when within this of the target
     arm_timeout_margin_s: 5.0     # added to travel time (brake release/engage, settle)
 
     # Drive

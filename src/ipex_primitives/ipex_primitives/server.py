@@ -15,7 +15,9 @@ Hardware paths used:
   arms   -> /ipex/<arm>_arm/goto (absolute degrees)
   drums  -> /<arm>_drum_controller/commands (rad/s)
   inputs <- /diff_drive_controller/odom, /joint_states, /ipex/<arm>_arm/homed,
-            /rover/<wheel>/current (ACS712; the RoboClaw current reading is unreliable), /ipex/energy
+            /rover/<wheel>/current (ACS712; the RoboClaw current reading is unreliable), /ipex/energy,
+            /imu/data (pitch, for the excavate depth hold)
+  status -> /ipex/<arm>_arm/depth_hold (Float64MultiArray, see depth_hold.DepthHold.status)
 """
 
 import csv
@@ -32,17 +34,19 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile
+from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, Empty, Float32, Float64, Float64MultiArray, String
 
 from ipex_interfaces.action import Primitive as PrimitiveAction
 from ipex_interfaces.msg import EnergyState
 
 from ipex_primitives.base import Codes, PrimitiveFailure
+from ipex_primitives.depth_hold import (DEPTH_HOLD_DEFAULTS, GEOMETRY_DEFAULTS, PitchFilter,
+                                        pitch_from_quaternion)
 from ipex_primitives.energy_window import EnergyHistory, Sample, window_energy
 from ipex_primitives.library import CATALOG
 from ipex_primitives.params import ParamError, parse_params_yaml, resolve_params
@@ -54,9 +58,8 @@ CONFIG_DEFAULTS = {
     'arm_speed_deg_s': 5.625,       # default arm speed (firmware default)
     'arm_speed_min_deg_s': 0.5,     # firmware clamps ARM_SPEED to [min, max]
     'arm_speed_max_deg_s': 5.625,
-    'arm_pivot_height_m': 0.3208,   # shoulder pivot above the tire tread (CAD 0.3183 + 0.0025; rover-checked)
-    'arm_length_m': 0.3786,         # shoulder pivot to drum axle (ipex.xacro)
-    'drum_cut_radius_m': 0.149,     # drum tooth-tip radius (mesh)
+    **GEOMETRY_DEFAULTS,            # pivot height / arm length / cut radius / pivot distance
+    **DEPTH_HOLD_DEFAULTS,          # IMU pitch depth hold (excavate hold_depth)
     'arm_tolerance_deg': 0.5,
     'arm_timeout_margin_s': 5.0,
     'max_speed_mps': 1.0,
@@ -225,6 +228,18 @@ class PrimitiveContext:
         """Arm speed for the next moves (persists on the Teensy until changed)."""
         self.s.speed_pub[arm].publish(Float64(data=float(deg_s)))
 
+    def pitch_deg(self):
+        """Low-pass filtered IMU pitch (deg, nose down +), or None if stale / no IMU."""
+        with self.s.imu_lock:
+            return self.s.pitch.get(time.monotonic(), self.s.cfg['imu_stale_s'])
+
+    def depth_hold_status(self, arm, values):
+        self.s.depth_hold_pub[arm].publish(Float64MultiArray(data=[float(v) for v in values]))
+
+    def warn(self, message):
+        """Log a warning, at most every 2 s per message."""
+        self.s.get_logger().warn(message, throttle_duration_sec=2.0)
+
     def drums(self, arm, rad_s):
         if rad_s:
             self.drums_spinning.add(arm)
@@ -253,6 +268,8 @@ class PrimitiveServer(Node):
         self.homed = {}
         self.drive_current = {}
         self.drive_cmd = None
+        self.imu_lock = threading.Lock()
+        self.pitch = PitchFilter(self.cfg['pitch_filter_tau_s'])
 
         g = self.group
         self.create_subscription(EnergyState, '/ipex/energy', self.on_energy, 10, callback_group=g)
@@ -270,6 +287,8 @@ class PrimitiveServer(Node):
                 Float32, f'/rover/{wheel}/current',     # ACS712, not roboclaw_current
                 lambda m, w=wheel: self.drive_current.__setitem__(w, (m.data, time.monotonic())),
                 10, callback_group=g)
+        self.create_subscription(Imu, '/imu/data', self.on_imu, qos_profile_sensor_data,
+                                 callback_group=g)
         self.create_subscription(Empty, '/ipex/all_stop', lambda _m: self.estop.set(), 10,
                                  callback_group=g)
         self.create_subscription(Empty, '/ipex/teleop_override', lambda _m: self.override.set(), 10,
@@ -282,6 +301,9 @@ class PrimitiveServer(Node):
                           for a in ('front', 'rear')}
         self.drum_pub = {a: self.create_publisher(Float64MultiArray, f'/{a}_drum_controller/commands', 10)
                          for a in ('front', 'rear')}
+        self.depth_hold_pub = {
+            a: self.create_publisher(Float64MultiArray, f'/ipex/{a}_arm/depth_hold', 10)
+            for a in ('front', 'rear')}
         # Marks which primitive is running (empty = none) so a bag can be split by step.
         self.active_pub = self.create_publisher(String, '/ipex/primitive/active', latched)
         self.active_pub.publish(String(data=''))
@@ -315,6 +337,12 @@ class PrimitiveServer(Node):
         for arm, joint in SHOULDER_JOINTS.items():
             if joint in positions and math.isfinite(positions[joint]):
                 self.arm_angle[arm] = (math.degrees(positions[joint]), now)
+
+    def on_imu(self, msg):
+        q = msg.orientation
+        pitch = math.degrees(pitch_from_quaternion(q.x, q.y, q.z, q.w))
+        with self.imu_lock:
+            self.pitch.add(pitch, time.monotonic())
 
     def publish_drive(self):
         if self.drive_cmd is not None:

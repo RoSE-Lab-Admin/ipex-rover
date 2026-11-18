@@ -16,11 +16,14 @@ Context (ctx) API used here (implemented by server.PrimitiveContext):
   ctx.check_stall()               raise STALL if drive current sits at the limit
   ctx.arm_homed(arm) / ctx.arm_angle_deg(arm) / ctx.arm_goto(arm, deg)
   ctx.drums(arm, rad_s)           drum speed (both drums on that arm)
+  ctx.pitch_deg()                 filtered IMU pitch (deg, nose down +), or None if stale
+  ctx.depth_hold_status(arm, v) / ctx.warn(msg)
 """
 
 import math
 
 from ipex_primitives.base import Codes, Primitive, PrimitiveFailure
+from ipex_primitives.depth_hold import DepthHold
 from ipex_primitives.params import Param
 
 
@@ -305,6 +308,9 @@ class Excavate(Primitive):
                    'Below the tire tread (no sinkage); max ~0.072 m at the -40 deg limit'),
         Param('m_target_kg', float, default=None, unit='kg', unsupported=True,
               help='needs arm load cells; use duration_s'),
+        Param('hold_depth', bool, default=False,
+              help='IMU pitch depth hold: re-aim the arm(s) as the chassis pitches so the cut '
+                   'stays at the starting depth (depth_hold.py; dig angle >= depth_hold_min_deg)'),
     ]
 
     def run(self, ctx):
@@ -312,6 +318,7 @@ class Excavate(Primitive):
         arms = arms_of(self.params['arm'])
         omega = abs(self.params['omega_drum_rad_s'])
         check_drum_speed(self.config, omega)
+        hold = self.params['hold_depth']
 
         depth = self.params['d_dig_m']
         if depth is not None:
@@ -325,6 +332,16 @@ class Excavate(Primitive):
         else:
             angle = math.degrees(self.params['dig_angle_rad'])
 
+        if hold:
+            lo = self.config['depth_hold_min_deg']
+            if angle < lo - 1e-6:
+                raise PrimitiveFailure(
+                    Codes.INVALID_PARAMS,
+                    f'dig angle {angle:.2f} deg is below the depth hold limit {lo:g} deg '
+                    f'({cut_depth_m(lo, self.config):.3f} m deep)')
+            if ctx.pitch_deg() is None:
+                raise PrimitiveFailure(Codes.PRECONDITION, 'hold_depth: no IMU pitch (/imu/data)')
+
         # Drums up to speed before the arms lower, so they reach the ground
         # already spinning. They stop last (server, after the wheels stop).
         spin_drums(ctx, self.config, arms, omega)
@@ -332,22 +349,55 @@ class Excavate(Primitive):
         ctx.sleep(self.config['drum_spinup_s'])
         move_arms(ctx, self.config, arms, angle, (0.0, 0.2))
 
+        # Depth hold: pitch now (arms at the dig angle) is the zero.
+        holds, pitch0, stats = {}, None, {'corrections': 0, 'max_d_pitch_deg': 0.0}
+        if hold:
+            pitch0 = ctx.pitch_deg()
+            if pitch0 is None:
+                raise PrimitiveFailure(Codes.PRECONDITION, 'hold_depth: IMU pitch went stale')
+            holds = {arm: DepthHold(arm, angle, self.config) for arm in arms}
+
         duration = self.params['duration_s']
         v = min(self.params['speed_mps'], self.config['max_speed_mps'])
         ctx.set_timeout(duration + self.config['drive_timeout_margin_s'])
         elapsed = 0.0
+        tick = 0
         while elapsed < duration:
             ctx.drive(v, 0.0)
             ctx.check_stall()
+            if holds:
+                self.hold_step(ctx, holds, pitch0, elapsed, tick % 4 == 0, stats)
             ctx.sleep(0.05)
             elapsed += 0.05
+            tick += 1
             ctx.feedback(0.2 + 0.8 * min(elapsed / duration, 1.0) if duration else 1.0,
                          f'digging {elapsed:.1f} / {duration:.1f} s')
         ctx.stop_drive()
-        return {'dig_time_s': round(duration, 2), 'dig_angle_deg': round(angle, 2),
-                'cut_depth_m': round(cut_depth_m(angle, self.config), 4),
-                'note': 'cut depth below the tire tread (no sinkage); m_load not measured '
-                        '(no load cells)'}
+        out = {'dig_time_s': round(duration, 2), 'dig_angle_deg': round(angle, 2),
+               'cut_depth_m': round(cut_depth_m(angle, self.config), 4),
+               'note': 'cut depth below the tire tread (no sinkage); m_load not measured '
+                       '(no load cells)'}
+        if hold:
+            out.update({'hold_corrections': stats['corrections'],
+                        'hold_max_d_pitch_deg': round(stats['max_d_pitch_deg'], 2)})
+            out.update({f'{arm}_final_deg': round(h.last_cmd_deg, 2) for arm, h in holds.items()})
+        return out
+
+    @staticmethod
+    def hold_step(ctx, holds, pitch0, now, publish, stats):
+        pitch = ctx.pitch_deg()
+        d_pitch = None if pitch is None else pitch - pitch0
+        if d_pitch is not None:
+            stats['max_d_pitch_deg'] = max(stats['max_d_pitch_deg'], abs(d_pitch))
+        for arm, h in holds.items():
+            target = h.update(d_pitch, now)
+            if h.warning:
+                ctx.warn(f'{arm} arm depth hold: {h.reason}')
+            if target is not None:
+                ctx.arm_goto(arm, target)
+                stats['corrections'] += 1
+            if publish:
+                ctx.depth_hold_status(arm, h.status())
 
     def cleanup(self, ctx):
         for arm in arms_of(self.params['arm']):
