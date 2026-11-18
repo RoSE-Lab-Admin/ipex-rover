@@ -32,8 +32,8 @@ primitive_server:
     drum_dig_sign_front: -1.0
     drum_dig_sign_rear: -1.0
     drum_max_rad_s: 1.25664       # at the drum: 25600 motor steps/s (firmware cap, 1600/rev) / 80:1 = 12.0 drum RPM
-    drum_skip_min_rpm: 3.5        # resonance stall band (drum RPM): drum speeds strictly inside are
-    drum_skip_max_rpm: 4.5        # rejected (INVALID_PARAMS); must match teleop.yaml. min >= max = off
+    drum_skip_min_rpm: 3.0        # resonance stall band (drum RPM): drum speeds strictly inside are
+    drum_skip_max_rpm: 6.0        # rejected (INVALID_PARAMS); must match teleop.yaml. min >= max = off
     drum_spinup_s: 1.0            # excavate: drums spin this long before the arms lower
     drum_stop_wait_s: 3.0         # on exit: wait (max) for odometry to show the wheels stopped...
     drum_stop_delay_s: 0.5        # ...then this long before the drums stop (drums stop last)

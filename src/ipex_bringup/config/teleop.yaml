@@ -55,11 +55,12 @@ controller:
     # Drums, in drum RPM. 1 drum RPM = 1600 x 80 / 60 = 2133.3 motor steps/s.
     drum_rpm_step: 1.0               # per D-pad press
     drum_max_steps_s: 25600.0         # firmware DRUM_MAX_STEPS_S -> max 12.0 drum RPM
-    # Resonance stall band (drums lose sync if held here, 2026-11-16/17). A D-pad step
-    # that lands inside jumps to the far edge; excavation mode rounds a saved speed
-    # in the band to the nearest edge. Edges themselves are allowed. min >= max = off.
-    drum_skip_min_rpm: 3.5
-    drum_skip_max_rpm: 4.5
+    # Resonance band (rough 3-6 RPM, stalls ~3.66-4.5 if held, 2026-11-16/17). A D-pad
+    # step that lands inside keeps stepping the same way until it is out (3 -> 6, 6 -> 3);
+    # excavation mode rounds a saved speed in the band to the nearest edge.
+    # Edges themselves are allowed. min >= max = off. Must match primitives.yaml.
+    drum_skip_min_rpm: 3.0
+    drum_skip_max_rpm: 6.0
     drum_motor_steps_per_rev: 1600.0  # drum TB6600 pulses/rev (1/8 step, 2026-11-17); must match ipex.ros2_control.xacro
     drum_gear_ratio: 80.0            # motor : drum; must match drum_gear_ratio in ipex.ros2_control.xacro
     # Directions belong to the physical arm; swapped with the arm Teensy IDs on

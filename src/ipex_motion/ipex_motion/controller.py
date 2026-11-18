@@ -42,8 +42,8 @@ DEFAULT_PARAMS = {
 
     'drum_rpm_step': 1.0,              # drum RPM per D-pad press
     'drum_max_steps_s': 25600.0,        # firmware cap (DRUM_MAX_STEPS_S) = 12.0 drum RPM
-    'drum_skip_min_rpm': 3.5,          # resonance stall band: never rest inside (see teleop.yaml)
-    'drum_skip_max_rpm': 4.5,
+    'drum_skip_min_rpm': 3.0,          # resonance stall band: never rest inside (see teleop.yaml)
+    'drum_skip_max_rpm': 6.0,
     'drum_motor_steps_per_rev': 1600.0,  # drum TB6600 pulses/rev (1/8 step)
     'drum_gear_ratio': 80.0,           # motor turns per drum turn
     'front_drum_direction': -1.0,
@@ -604,7 +604,7 @@ class Controller(Node):
 
     def skip_drum_band(self, new_rpm, old_rpm):
         """A D-pad step that lands strictly inside the stall band keeps stepping the
-        same way until it is out (1 RPM steps: 3 -> 5, 5 -> 3), so the drums never
+        same way until it is out (1 RPM steps: 3 -> 6, 6 -> 3), so the drums never
         rest in the band and the speeds stay on the step grid."""
         lo, hi = self.drum_skip_band()
         delta = new_rpm - old_rpm
