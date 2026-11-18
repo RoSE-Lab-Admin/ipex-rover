@@ -29,7 +29,7 @@ Libraries: `Encoder`, `AccelStepper` (both ship with Teensyduino).
 | Pi → Teensy | `STEP <deg>` | Relative target (taps); accumulates onto a move in progress |
 | Pi → Teensy | `JOG UP` / `JOG DOWN` | Start or keep alive a jog (send ≤ every 250 ms) |
 | Pi → Teensy | `JOG STOP` | End a jog |
-| Pi → Teensy | `DRUM <steps_s>` | Drum speed, ±19200 (drum TB6600s at 1600 pulses/rev: 1 drum RPM = 2133.3 steps/s, max 9 RPM) |
+| Pi → Teensy | `DRUM <steps_s>` | Drum speed, ±25600 (drum TB6600s at 1600 pulses/rev: 1 drum RPM = 2133.3 steps/s, max 12 RPM) |
 | Pi → Teensy | `ARM_SPEED <deg_s>` | Arm speed for moves and jogs, clamped to 0.5–5.625 °/s (default 5.625 after reset); applies from the next step. Homing always uses the default. `ERR BUSY` while homing. |
 | Pi → Teensy | `STOP` | Stop arm (then brake) and drums |
 | Teensy → Pi | `CAL_START` / `CAL_DONE` / `CAL_ABORTED` | Homing status |

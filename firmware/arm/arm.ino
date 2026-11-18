@@ -122,7 +122,9 @@ const unsigned long JOG_TIMEOUT_MS = 250;    // No keepalive within this -> stop
 // Drum TB6600s at 1/8 step = 1600 pulses/motor rev (MOTOR_STEPS_PER_REV above is the ARM, 400).
 // 1600 x 80:1 gearbox = 128000 steps/drum rev -> 1 drum RPM = 2133.3 steps/s.
 // Must match drum_motor_steps_per_rev (ipex.ros2_control.xacro, teleop.yaml) and library.py.
-const long DRUM_MAX_STEPS_S = 19200;          // = 9.0 drum RPM
+// 25600 steps/s: the TB6600's max step rate isn't published for this board; verify
+// by counting drum turns at 10-12 RPM (if short, go to 800/rev).
+const long DRUM_MAX_STEPS_S = 25600;         // = 12.0 drum RPM
 const float DRUM_ACCEL_STEPS_S2 = 6000.0;    // = 2.8 drum RPM/s (same ramp as 1500 at 1/2 step)
 const unsigned int DRUM_MIN_PULSE_US = 10;   // TB6600 needs a few us; AccelStepper default is 1 us
 

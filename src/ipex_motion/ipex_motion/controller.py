@@ -41,7 +41,9 @@ DEFAULT_PARAMS = {
     'wheel_separation': 0.582,
 
     'drum_rpm_step': 1.0,              # drum RPM per D-pad press
-    'drum_max_steps_s': 19200.0,        # firmware cap (DRUM_MAX_STEPS_S) = 9.0 drum RPM
+    'drum_max_steps_s': 25600.0,        # firmware cap (DRUM_MAX_STEPS_S) = 12.0 drum RPM
+    'drum_skip_min_rpm': 3.5,          # resonance stall band: never rest inside (see teleop.yaml)
+    'drum_skip_max_rpm': 4.5,
     'drum_motor_steps_per_rev': 1600.0,  # drum TB6600 pulses/rev (1/8 step)
     'drum_gear_ratio': 80.0,           # motor turns per drum turn
     'front_drum_direction': -1.0,
@@ -438,6 +440,12 @@ class Controller(Node):
             # Never lower the arms onto stopped drums.
             drum = abs(self.p['excavate_drum_rpm'])
             self.get_logger().warn(f'Saved drum speed is 0; using the default {drum:g} RPM.')
+        lo, hi = self.drum_skip_band()
+        if lo < drum < hi:
+            edge = lo if drum - lo <= hi - drum else hi
+            self.get_logger().warn(
+                f'Saved drum speed {drum:g} RPM is in the stall band ({lo:g}-{hi:g}); using {edge:g} RPM.')
+            drum = edge
 
         self.release_arm_inputs()
         self.dig_target = {'front': s['front_deg'], 'rear': s['rear_deg']}
@@ -572,12 +580,14 @@ class Controller(Node):
 
         # D-pad right: + drum_rpm_step
         if self.rising('dpad_right', dpad_x < -0.5):
-            self.drum_rpm = clamp(round(self.drum_rpm + step, 6), -limit, limit)
+            new = clamp(round(self.drum_rpm + step, 6), -limit, limit)
+            self.drum_rpm = clamp(self.skip_drum_band(new, self.drum_rpm), -limit, limit)
             changed = True
 
         # D-pad left: - drum_rpm_step
         if self.rising('dpad_left', dpad_x > 0.5):
-            self.drum_rpm = clamp(round(self.drum_rpm - step, 6), -limit, limit)
+            new = clamp(round(self.drum_rpm - step, 6), -limit, limit)
+            self.drum_rpm = clamp(self.skip_drum_band(new, self.drum_rpm), -limit, limit)
             changed = True
 
         # Drums are continuous: publish only on change.
@@ -586,6 +596,24 @@ class Controller(Node):
             self.get_logger().info(
                 f'Drum speed: {self.drum_rpm:.2f} RPM '
                 f'({abs(self.drum_rpm) * self.steps_s_per_drum_rpm():.0f} steps/s)')
+
+    def drum_skip_band(self):
+        """(lo, hi) drum RPM of the resonance stall band; (0, 0) when off (min >= max)."""
+        lo, hi = float(self.p['drum_skip_min_rpm']), float(self.p['drum_skip_max_rpm'])
+        return (lo, hi) if hi > lo else (0.0, 0.0)
+
+    def skip_drum_band(self, new_rpm, old_rpm):
+        """A D-pad step that lands strictly inside the stall band keeps stepping the
+        same way until it is out (1 RPM steps: 3 -> 5, 5 -> 3), so the drums never
+        rest in the band and the speeds stay on the step grid."""
+        lo, hi = self.drum_skip_band()
+        delta = new_rpm - old_rpm
+        rpm = new_rpm
+        for _ in range(1000):
+            if not lo < abs(rpm) < hi or delta == 0.0:
+                break
+            rpm = round(rpm + delta, 6)
+        return rpm
 
     def steps_s_per_drum_rpm(self):
         # 1 drum RPM = gear_ratio motor revs per minute

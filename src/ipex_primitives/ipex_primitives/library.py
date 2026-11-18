@@ -32,7 +32,7 @@ ARM_CHOICES = ('front', 'rear', 'both')
 DRUM_STEPS_PER_REV = 1600.0 * 80.0
 DRUM_STEPS_TO_RAD_S = 2.0 * math.pi / DRUM_STEPS_PER_REV
 DRUM_RPM_TO_RAD_S = 2.0 * math.pi / 60.0
-DEFAULT_DRUM_RAD_S = 3.75 * DRUM_RPM_TO_RAD_S           # 3.75 drum RPM (= 8000 steps/s)
+DEFAULT_DRUM_RAD_S = 2.0 * DRUM_RPM_TO_RAD_S            # 2.0 drum RPM (= 4267 steps/s), below the stall band
 
 
 def arms_of(arm):
@@ -153,6 +153,15 @@ def check_drum_speed(config, omega):
             f'drum speed {omega / DRUM_RPM_TO_RAD_S:.2f} drum RPM '
             f'({omega / DRUM_STEPS_TO_RAD_S:.0f} steps/s) exceeds '
             f'{limit / DRUM_RPM_TO_RAD_S:.2f} drum RPM ({limit / DRUM_STEPS_TO_RAD_S:.0f} steps/s)')
+    # Resonance stall band: the drums lose sync if run inside it (edges allowed).
+    lo = config.get('drum_skip_min_rpm', 0.0)
+    hi = config.get('drum_skip_max_rpm', 0.0)
+    rpm = abs(omega) / DRUM_RPM_TO_RAD_S
+    if hi > lo and lo + 1e-6 < rpm < hi - 1e-6:
+        raise PrimitiveFailure(
+            Codes.INVALID_PARAMS,
+            f'drum speed {rpm:.2f} drum RPM is inside the stall band '
+            f'({lo:g}-{hi:g} drum RPM, drum_skip_min/max_rpm); use <= {lo:g} or >= {hi:g}')
 
 
 # ----------------------------------------------------------------------------
