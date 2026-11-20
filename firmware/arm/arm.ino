@@ -18,11 +18,12 @@
 // BRAKE INTERLOCK (safety-critical):
 //   1. Never step with the brake engaged: armStepPulse() refuses unless the
 //      brake was released at least BRAKE_RELEASE_MS ago AND the relay output
-//      reads back HIGH (released) right now.
+//      was last driven HIGH (released; tracked in software, not read back).
 //   - Step loops exit only between pulses, so step pins are LOW on exit.
 //   2. Never engage the brake on a motor commanded to move: engageBrake()
 //      refuses while any step loop is running (inStepLoop: move, jog, homing,
-//      hold) or a step pin is HIGH, and waits SETTLE_MS after the LAST step.
+//      hold) or a step pulse is mid-way (pins HIGH), and waits SETTLE_MS after
+//      the LAST step.
 //   - Every move, jog, and homing run ends the same way: exit loop -> settle
 //     -> engage. A new move/jog then starts fresh: release -> step -> ...
 //
@@ -249,6 +250,10 @@ void waitUsServicingDrum(unsigned long us) {
 bool brakeReleased = false;          // Relay HIGH
 unsigned long brakeReleasedAtMs = 0; // When the relay went HIGH
 bool inStepLoop = false;             // True while any arm step loop is running
+// Output states tracked in software. Do NOT digitalRead() output pins for
+// interlocks: what that returns on the Teensy 4 isn't guaranteed.
+int brakeRelayOut = LOW;             // Level last written to BRAKE_RELAY
+bool stepPinsHigh = false;           // Arm step pins currently HIGH (mid-pulse)
 
 // Same relay action and timing as the original sketch, plus:
 //   - releaseBrake() records when the brake was released.
@@ -257,6 +262,7 @@ bool inStepLoop = false;             // True while any arm step loop is running
 //   - Waits keep the drum stepping instead of blocking it.
 void releaseBrake() {
   digitalWrite(BRAKE_RELAY, HIGH); // Transistor ON -> IN1 Grounded -> Releases 24V Brake
+  brakeRelayOut = HIGH;
   brakeReleased = true;
   brakeReleasedAtMs = millis();
   waitMsServicingDrum(BRAKE_RELEASE_MS);
@@ -267,7 +273,7 @@ unsigned long lastArmStepUs = 0;     // Time of the last arm step pulse
 bool engageBrake() {
   // Never lock the brake on a moving motor: no step loop may be running
   // (a move, jog, homing run or hold), and step pins must be LOW.
-  if (inStepLoop || digitalRead(MOTOR_ENC_STEP) == HIGH || digitalRead(MOTOR_BRK_STEP) == HIGH) {
+  if (inStepLoop || stepPinsHigh) {
     Serial.println("# REFUSED brake engage: arm motor commanded to move");
     return false;
   }
@@ -276,6 +282,7 @@ bool engageBrake() {
     serviceDrum();
   }
   digitalWrite(BRAKE_RELAY, LOW);  // Transistor OFF -> Spring-locks Brake
+  brakeRelayOut = LOW;
   brakeReleased = false;
   waitMsServicingDrum(BRAKE_ENGAGE_MS);
   return true;
@@ -311,17 +318,19 @@ bool armStepPulse() {
   // Never step against the brake: the release must be recorded, old enough,
   // AND the relay output must actually be driven HIGH (released) right now.
   if (!brakeReleased || millis() - brakeReleasedAtMs < BRAKE_RELEASE_MS ||
-      digitalRead(BRAKE_RELAY) != HIGH) {
+      brakeRelayOut != HIGH) {
     Serial.println("ERR BRAKE_NOT_RELEASED");
     return false;
   }
   lastArmStepUs = micros();
 
+  stepPinsHigh = true;
   digitalWrite(MOTOR_ENC_STEP, HIGH);
   digitalWrite(MOTOR_BRK_STEP, HIGH);
   waitUsServicingDrum(armStepHalfPeriodUs);
   digitalWrite(MOTOR_ENC_STEP, LOW);
   digitalWrite(MOTOR_BRK_STEP, LOW);
+  stepPinsHigh = false;
   waitUsServicingDrum(armStepHalfPeriodUs);
   return true;
 }
@@ -797,7 +806,7 @@ void holdArm() {
     // A queued HOLD ON while holding is only a keepalive; ARM/JOG/CAL can't queue here.
     if (pendingCmd == CMD_HOLD) pendingCmd = CMD_NONE;
     // The brake relay must still be driven to "released"; otherwise stop at once.
-    if (!brakeReleased || digitalRead(BRAKE_RELAY) != HIGH) { reason = "FAULT"; break; }
+    if (!brakeReleased || brakeRelayOut != HIGH) { reason = "FAULT"; break; }
 
     const float cur = getPhysicalArmDegrees();
     if (fabs(cur - expectedDeg) > HOLD_SLIP_DEG) { reason = "SLIP"; break; }

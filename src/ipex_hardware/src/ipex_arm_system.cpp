@@ -143,6 +143,12 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
     port_.reset();
     return hardware_interface::CallbackReturn::ERROR;
   }
+  // Until open() puts the tty in raw mode, Linux echoes what the Teensy sends
+  // (STATE lines) back to it, leaving a partial line in its input buffer that
+  // swallowed the first real command (ERR UNKNOWN_COMMAND, 2026-11-18). A bare
+  // newline ends that fragment (one harmless ERR at startup); empty lines are
+  // ignored by the firmware.
+  port_->write_line("");
 
   auto node = get_node();
   if (!node) {
