@@ -89,10 +89,16 @@ DEFAULT_PARAMS = {
     # new depth where it stops. Geometry + limits must match primitives.yaml.
     'excavate_hold_depth': False,      # on at start-up?
     'excavate_hold_button': 7,         # Start (F710 X mode)
+    # depth_hold_brake_off (true): the arm Teensy's hold mode (HOLD ON keepalives
+    # on /ipex/<arm>_arm/hold) keeps the brake released and holds the arm with
+    # the motors (encoder closed loop, slip -> brake). Ending the hold, X, B,
+    # a firmware fault or a stale IMU engages the brake again.
     **GEOMETRY_DEFAULTS,
     **DEPTH_HOLD_DEFAULTS,
 }
 HOLD_JOG_SETTLE_S = 0.5     # after a jog ends, follow the arm this long before holding again
+HOLD_START_TIMEOUT_S = 2.0  # brake-off hold: Teensy must report HOLDING within this
+HOLD_IMU_DROP_S = 2.0       # no fresh pitch this long while holding -> end the hold (brake on)
 
 SHOULDER_JOINTS = {'front': 'front_shoulder_rev', 'rear': 'back_shoulder_rev'}
 STOPPED_MPS = 0.005      # odometry below these = wheels stopped
@@ -192,6 +198,16 @@ class Controller(Node):
             arm: self.create_publisher(Float64MultiArray, f'/ipex/{arm}_arm/depth_hold', 10)
             for arm in ('front', 'rear')
         }
+        # Brake-off hold mode: request out (keepalive), Teensy state in.
+        self.hold_pub = {
+            arm: self.create_publisher(Bool, f'/ipex/{arm}_arm/hold', 10)
+            for arm in ('front', 'rear')
+        }
+        self.arm_holding = {'front': False, 'rear': False}
+        for arm in ('front', 'rear'):
+            self.create_subscription(
+                Bool, f'/ipex/{arm}_arm/holding',
+                lambda msg, a=arm: self.arm_holding.__setitem__(a, msg.data), latched)
         self.excavation_pub = self.create_publisher(Bool, '/ipex/excavation_mode', latched)
         self.excavation_pub.publish(Bool(data=False))
         self.create_timer(0.05, self.excavation_tick)
@@ -225,6 +241,9 @@ class Controller(Node):
         self.pitch0 = None                # pitch when the hold started (deg)
         self.hold_paused_until = {}       # arm -> monotonic time (jogging / just jogged)
         self.hold_tick = 0
+        self.hold_started_at = 0.0
+        self.hold_seen = {}               # arm -> Teensy has reported HOLDING this hold
+        self.last_pitch_ok = 0.0
 
         # Previous input states for rising-edge detection.
         self.prev = {
@@ -630,20 +649,56 @@ class Controller(Node):
         self.pitch0 = pitch
         self.holds = {a: DepthHold(a, v, self.p) for a, v in angles.items()}
         self.hold_paused_until = {}
+        self.hold_started_at = self.last_pitch_ok = time.monotonic()
+        self.hold_seen = {a: False for a in self.holds}
+        if self.p['depth_hold_brake_off']:
+            self.send_hold(True)
         arms = ', '.join(f'{a} {h.nominal_deg:.2f} deg = {h.target_depth_m() * 100:.1f} cm'
                          for a, h in self.holds.items())
         self.get_logger().warn(f'Depth hold ON: {arms} (pitch zero {pitch:+.2f} deg).')
 
-    def end_hold(self):
+    def send_hold(self, on):
+        for arm in ('front', 'rear'):
+            self.hold_pub[arm].publish(Bool(data=bool(on)))
+
+    def end_hold(self, why=None):
         if self.holds:
-            self.get_logger().info('Depth hold stopped; arms stay where they are.')
+            if why:
+                self.get_logger().error(
+                    f'Depth hold stopped: {why}. Brakes engaged, arms stay where they are; '
+                    f'Start to try again.')
+            else:
+                self.get_logger().info('Depth hold stopped; brakes engaged, arms stay where they are.')
+            if self.p['depth_hold_brake_off']:
+                self.send_hold(False)    # HOLD OFF -> Teensy stops stepping, settles, brakes
         self.holds = {}
         self.pitch0 = None
         self.hold_paused_until = {}
+        self.hold_seen = {}
 
     def hold_update(self, now):
         d_pitch = self.d_pitch_deg()
         self.hold_tick += 1
+
+        # Safety: never leave the brake off without a fresh IMU or a Teensy in hold mode.
+        if d_pitch is not None:
+            self.last_pitch_ok = now
+        elif now - self.last_pitch_ok > HOLD_IMU_DROP_S:
+            self.hold_enabled = False
+            self.end_hold(f'no IMU pitch for {HOLD_IMU_DROP_S:g} s')
+            return
+        if self.p['depth_hold_brake_off']:
+            for arm in self.holds:
+                if self.arm_holding[arm]:
+                    self.hold_seen[arm] = True
+                elif self.hold_seen.get(arm) or now - self.hold_started_at > HOLD_START_TIMEOUT_S:
+                    self.hold_enabled = False
+                    self.end_hold(f'{arm} arm Teensy left hold mode (see the ipex-rover log for HOLD_DONE)'
+                                  if self.hold_seen.get(arm) else
+                                  f'{arm} arm Teensy did not enter hold mode')
+                    return
+            self.send_hold(True)          # keepalive (plugin forwards HOLD ON every 100 ms)
+
         for arm, h in self.holds.items():
             # Jogging (or just jogged): follow the arm; the depth where it stops is the new target.
             if self.arms[arm].jogging or now < self.hold_paused_until.get(arm, 0.0):

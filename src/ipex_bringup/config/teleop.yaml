@@ -89,7 +89,8 @@ controller:
     depth_hold_max_pitch_deg: 4.0
     depth_hold_max_correction_deg: 10.0
     depth_hold_max_ratio: 3.0
-    depth_hold_deadband_deg: 0.5
-    depth_hold_min_interval_s: 1.0
-    pitch_filter_tau_s: 1.0
+    depth_hold_brake_off: true          # brake released while holding, motors hold (see primitives.yaml)
+    depth_hold_deadband_deg: 0.25
+    depth_hold_min_interval_s: 0.2
+    pitch_filter_tau_s: 0.3             # was 1.0 (lagged the tilt ~3 s); tune from a dig bag
     imu_stale_s: 0.5

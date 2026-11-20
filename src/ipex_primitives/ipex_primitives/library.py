@@ -18,12 +18,16 @@ Context (ctx) API used here (implemented by server.PrimitiveContext):
   ctx.drums(arm, rad_s)           drum speed (both drums on that arm)
   ctx.pitch_deg()                 filtered IMU pitch (deg, nose down +), or None if stale
   ctx.depth_hold_status(arm, v) / ctx.warn(msg)
+  ctx.arm_hold(arm, on) / ctx.arm_holding(arm)   brake-off hold mode (depth hold)
 """
 
 import math
 
 from ipex_primitives.base import Codes, Primitive, PrimitiveFailure
 from ipex_primitives.depth_hold import DepthHold
+
+HOLD_START_TIMEOUT_S = 2.0   # brake-off hold: Teensy must report HOLDING within this of the dig start
+HOLD_IMU_DROP_S = 2.0        # no fresh pitch this long -> stop the dig (brake on)
 from ipex_primitives.params import Param
 
 
@@ -350,7 +354,9 @@ class Excavate(Primitive):
         move_arms(ctx, self.config, arms, angle, (0.0, 0.2))
 
         # Depth hold: pitch now (arms at the dig angle) is the zero.
-        holds, pitch0, stats = {}, None, {'corrections': 0, 'max_d_pitch_deg': 0.0}
+        holds, pitch0 = {}, None
+        stats = {'corrections': 0, 'max_d_pitch_deg': 0.0, 'pitch_ok_at': 0.0, 'seen': {},
+                 'brake_off': bool(self.config.get('depth_hold_brake_off', False))}
         if hold:
             pitch0 = ctx.pitch_deg()
             if pitch0 is None:
@@ -389,6 +395,22 @@ class Excavate(Primitive):
         d_pitch = None if pitch is None else pitch - pitch0
         if d_pitch is not None:
             stats['max_d_pitch_deg'] = max(stats['max_d_pitch_deg'], abs(d_pitch))
+            stats['pitch_ok_at'] = now
+        elif now - stats['pitch_ok_at'] > HOLD_IMU_DROP_S:
+            raise PrimitiveFailure(Codes.HARDWARE, f'hold_depth: no IMU pitch for {HOLD_IMU_DROP_S:g} s '
+                                                   '(dig stopped, brakes engaged)')
+        if stats['brake_off']:
+            # Brake off while holding: the Teensy must be (and stay) in hold mode.
+            for arm in holds:
+                if ctx.arm_holding(arm):
+                    stats['seen'][arm] = True
+                elif stats['seen'].get(arm) or now > HOLD_START_TIMEOUT_S:
+                    raise PrimitiveFailure(
+                        Codes.HARDWARE,
+                        f'hold_depth: {arm} arm Teensy ' +
+                        ('left hold mode (HOLD_DONE in the log; brake engaged)'
+                         if stats['seen'].get(arm) else 'did not enter hold mode'))
+                ctx.arm_hold(arm, True)        # keepalive
         for arm, h in holds.items():
             target = h.update(d_pitch, now)
             if h.warning:
@@ -401,6 +423,8 @@ class Excavate(Primitive):
 
     def cleanup(self, ctx):
         for arm in arms_of(self.params['arm']):
+            if self.params.get('hold_depth') and self.config.get('depth_hold_brake_off', False):
+                ctx.arm_hold(arm, False)       # HOLD OFF: stop, settle, brake
             ctx.drums(arm, 0.0)
 
 

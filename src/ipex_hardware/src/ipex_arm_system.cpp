@@ -61,6 +61,10 @@ hardware_interface::CallbackReturn IpexArmSystem::on_init(
       std::stoi(param_or(hw, "jog_timeout_ms", "200")));
     jog_keepalive_ = std::chrono::milliseconds(
       std::stoi(param_or(hw, "jog_keepalive_ms", "100")));
+    hold_timeout_ = std::chrono::milliseconds(
+      std::stoi(param_or(hw, "hold_timeout_ms", "300")));
+    hold_keepalive_ = std::chrono::milliseconds(
+      std::stoi(param_or(hw, "hold_keepalive_ms", "100")));
   } catch (const std::exception & e) {
     RCLCPP_ERROR(get_logger(), "Invalid or missing arm hardware parameter: %s", e.what());
     return hardware_interface::CallbackReturn::ERROR;
@@ -124,6 +128,12 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
   jog_sent_dir_ = 0;
   jog_blocked_ = false;
   pending_step_deg_ = 0.0;
+  hold_requested_ = false;
+  hold_stamp_ns_ = 0;
+  hold_sent_ = false;
+  hold_blocked_ = false;
+  hold_fault_ = false;
+  holding_ = false;
 
   port_ = std::make_unique<SerialPort>(serial_device_, serial_baud_);
   if (!port_->open()) {
@@ -143,6 +153,14 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
   homed_pub_ = node->create_publisher<std_msgs::msg::Bool>(
     "/ipex/" + arm_name_ + "/homed", rclcpp::QoS(1).transient_local());
   publish_homed(false);
+
+  holding_pub_ = node->create_publisher<std_msgs::msg::Bool>(
+    "/ipex/" + arm_name_ + "/holding", rclcpp::QoS(1).transient_local());
+  {
+    std_msgs::msg::Bool msg;
+    msg.data = false;
+    holding_pub_->publish(msg);
+  }
 
   drum_steps_pub_ = node->create_publisher<std_msgs::msg::Float32>(
     "/rover/" + arm_name_ + "/drum/steps_s", 10);
@@ -191,6 +209,13 @@ hardware_interface::CallbackReturn IpexArmSystem::on_configure(
       }
     });
 
+  hold_sub_ = node->create_subscription<std_msgs::msg::Bool>(
+    "/ipex/" + arm_name_ + "/hold", 10,
+    [this](const std_msgs::msg::Bool & msg) {
+      hold_requested_ = msg.data;
+      hold_stamp_ns_ = steady_now_ns();
+    });
+
   RCLCPP_INFO(get_logger(), "Arm '%s' configured on %s.", arm_name_.c_str(),
     serial_device_.c_str());
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -234,7 +259,9 @@ hardware_interface::CallbackReturn IpexArmSystem::on_cleanup(
   step_sub_.reset();
   goto_sub_.reset();
   speed_sub_.reset();
+  hold_sub_.reset();
   homed_pub_.reset();
+  holding_pub_.reset();
   drum_steps_pub_.reset();
   drum_rpm_pub_.reset();
   port_.reset();
@@ -288,6 +315,38 @@ void IpexArmSystem::handle_line(const std::string & line)
     if ((homed != 0) != homed_) {
       homed_ = (homed != 0);
       publish_homed(homed_);
+    }
+
+    const bool holding = std::string(activity) == "HOLDING";
+    if (holding != holding_ && holding_pub_) {
+      holding_ = holding;
+      std_msgs::msg::Bool msg;
+      msg.data = holding;
+      holding_pub_->publish(msg);
+    }
+    return;
+  }
+
+  if (starts_with(line, "HOLD_START")) {
+    RCLCPP_WARN(get_logger(), "Arm '%s': %s (brake released, motors holding)",
+      arm_name_.c_str(), line.c_str());
+    return;
+  }
+  if (starts_with(line, "HOLD_DONE")) {
+    if (starts_with(line, "HOLD_DONE RELEASED")) {
+      RCLCPP_INFO(get_logger(), "Arm '%s': %s (brake engaged)", arm_name_.c_str(), line.c_str());
+    } else {
+      // SLIP / TIMEOUT / STOP / FAULT: brake engaged; no new hold until the
+      // request is released (the Teensy latches too).
+      hold_fault_ = true;
+      RCLCPP_ERROR(get_logger(), "Arm '%s': %s (brake engaged; hold request ignored until released)",
+        arm_name_.c_str(), line.c_str());
+    }
+    if (holding_pub_ && holding_) {
+      holding_ = false;
+      std_msgs::msg::Bool msg;
+      msg.data = false;
+      holding_pub_->publish(msg);
     }
     return;
   }
@@ -370,7 +429,52 @@ hardware_interface::return_type IpexArmSystem::write(
     jog_blocked_ = true;
     pending_step_deg_ = 0.0;
     pending_goto_deg_ = std::numeric_limits<double>::quiet_NaN();
+    // Drop any hold: STOP already braked it; a new request is required.
+    hold_sent_ = false;
+    hold_blocked_ = true;
     return hardware_interface::return_type::OK;
+  }
+
+  // HOLD (brake-off hold mode): before any goto, so a goto in the same cycle
+  // becomes the held target.
+  {
+    const auto now = std::chrono::steady_clock::now();
+    const auto age = std::chrono::nanoseconds(steady_now_ns() - hold_stamp_ns_.load());
+    bool desired = hold_requested_.load() && age <= hold_timeout_;
+
+    if (hold_fault_.exchange(false)) {
+      hold_blocked_ = true;             // Teensy ended the hold itself: stop asking
+      hold_sent_ = false;
+    }
+    if (hold_blocked_) {
+      if (!desired) {
+        hold_blocked_ = false;
+      }
+      desired = false;
+    }
+
+    const char * hold_line = nullptr;
+    if (desired) {
+      if (!hold_sent_ || now - last_hold_sent_ >= hold_keepalive_) {
+        hold_line = "HOLD ON";
+      }
+    } else if (hold_sent_) {
+      hold_line = "HOLD OFF";
+      if (hold_requested_.load() && age > hold_timeout_) {
+        RCLCPP_WARN(get_logger(), "Arm '%s': hold request stale, sending HOLD OFF.",
+          arm_name_.c_str());
+      }
+    }
+
+    if (hold_line) {
+      if (!port_->write_line(hold_line)) {
+        RCLCPP_ERROR(get_logger(), "Arm '%s': failed to send %s: %s",
+          arm_name_.c_str(), hold_line, port_->last_error().c_str());
+        return hardware_interface::return_type::ERROR;
+      }
+      hold_sent_ = desired;
+      last_hold_sent_ = now;
+    }
   }
 
   // JOG: the requested direction is only valid while fresh.

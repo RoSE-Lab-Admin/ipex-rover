@@ -40,9 +40,10 @@ DEPTH_HOLD_DEFAULTS = {
     'depth_hold_max_pitch_deg': 4.0,        # |pitch change| above this: stop correcting
     'depth_hold_max_correction_deg': 10.0,  # |arm angle - dig angle| cap
     'depth_hold_max_ratio': 3.0,            # |correction| <= ratio x |pitch change| (geometry ~2.4)
-    'depth_hold_deadband_deg': 0.5,         # re-command only when the target moved this much
-    'depth_hold_min_interval_s': 1.0,       # and no sooner than this after the last command
-    'pitch_filter_tau_s': 1.0,              # IMU pitch low-pass time constant
+    'depth_hold_brake_off': True,           # arm Teensy hold mode: brake released, motors hold (no brake cycle per move)
+    'depth_hold_deadband_deg': 0.25,        # re-command only when the target moved this much (0.5 with the brake on)
+    'depth_hold_min_interval_s': 0.2,       # and no sooner than this after the last command (1.0 with the brake on)
+    'pitch_filter_tau_s': 0.3,              # IMU pitch low-pass time constant (was 1.0: too laggy, 2026-11-18)
     'imu_stale_s': 0.5,                     # pitch older than this = no pitch (UM7 at 60 Hz)
 }
 

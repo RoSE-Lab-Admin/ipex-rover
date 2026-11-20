@@ -100,12 +100,17 @@ def test_pitch_limit_and_stale_imu_freeze():
 
 
 def test_deadband_and_interval():
-    h = make('front')
+    h = make('front', depth_hold_deadband_deg=0.5, depth_hold_min_interval_s=1.0)
     assert h.update(0.1, now=10.0) is None             # 0.24 deg < 0.5 deadband
     first = h.update(1.0, now=10.0)
     assert first is not None
     assert h.update(2.0, now=10.5) is None             # < 1 s since the last command
     assert h.update(2.0, now=11.1) is not None
+    fast = make('front')                               # brake-off defaults: 0.25 deg, 0.2 s
+    assert fast.update(0.1, now=10.0) is None          # 0.24 deg < 0.25
+    assert fast.update(0.2, now=10.0) is not None
+    assert fast.update(0.5, now=10.1) is None
+    assert fast.update(0.5, now=10.25) is not None
 
 
 def test_rebaseline_keeps_the_depth_where_the_arm_stopped():
@@ -127,8 +132,11 @@ def test_pitch_filter():
 class PitchCtx:
     """Arms reach targets at once; pitch ramps 0 -> 2 deg nose down over the dig."""
 
-    def __init__(self, pitch_rate_deg_s=0.4, imu=True):
+    def __init__(self, pitch_rate_deg_s=0.4, imu=True, teensy_holds=True, drop_hold_at=None,
+                 imu_drop_at=None):
         self.t = 0.0
+        self.teensy_holds, self.drop_hold_at, self.imu_drop_at = teensy_holds, drop_hold_at, imu_drop_at
+        self.hold_msgs = []        # (t, arm, on)
         self.rate = pitch_rate_deg_s
         self.imu = imu
         self.angle = {'front': 45.0, 'rear': 45.0}
@@ -155,7 +163,17 @@ class PitchCtx:
         self.gotos.append((self.t, arm, deg))
 
     def pitch_deg(self):
-        return min(self.rate * self.t, 2.0) if self.imu else None
+        if not self.imu or (self.imu_drop_at is not None and self.t >= self.imu_drop_at):
+            return None
+        return min(self.rate * self.t, 2.0)
+
+    def arm_hold(self, arm, on):
+        self.hold_msgs.append((self.t, arm, on))
+
+    def arm_holding(self, arm):
+        if not self.teensy_holds or (self.drop_hold_at is not None and self.t >= self.drop_hold_at):
+            return False
+        return any(a == arm and on for _, a, on in self.hold_msgs)
 
     def depth_hold_status(self, arm, values):
         self.status.append((arm, values))
@@ -185,6 +203,50 @@ def test_excavate_holds_depth_as_the_nose_drops():
         times = [t for t, a, _ in ctx.gotos if a == arm][1:]       # first = lowering
         assert all(b - a >= CFG['depth_hold_min_interval_s'] - 1e-6 for a, b in zip(times, times[1:]))
     assert ctx.status
+    # Brake-off hold: keepalives during the dig, HOLD OFF from cleanup
+    assert sum(1 for _, a, on in ctx.hold_msgs if a == 'front' and on) > 100
+
+
+def run_excavate_with_cleanup(given, ctx):
+    from ipex_primitives.library import CATALOG
+    from ipex_primitives.params import resolve_params
+    cls = CATALOG['excavate']
+    params, _ = resolve_params(cls.PARAMS, given)
+    prim = cls(params, CFG)
+    try:
+        return prim.run(ctx)
+    finally:
+        prim.cleanup(ctx)
+
+
+HOLD = {'arm': 'front', 'd_dig_m': 0.01, 'duration_s': 10.0, 'drum_rpm': 2.0, 'hold_depth': True}
+
+
+def test_cleanup_releases_the_hold():
+    ctx = PitchCtx()
+    run_excavate_with_cleanup(HOLD, ctx)
+    assert ctx.hold_msgs[-1][1:] == ('front', False)
+
+
+def test_brake_off_hold_fails_safe():
+    from ipex_primitives.base import Codes, PrimitiveFailure
+    # Teensy never enters hold mode -> fail within ~2 s of the dig start
+    ctx = PitchCtx(teensy_holds=False)
+    with pytest.raises(PrimitiveFailure) as e:
+        run_excavate_with_cleanup(HOLD, ctx)
+    assert e.value.code == Codes.HARDWARE and 'did not enter' in e.value.message
+    assert ctx.hold_msgs[-1][2] is False
+    # Teensy leaves hold mid-dig (slip / timeout) -> fail, HOLD OFF
+    ctx = PitchCtx(drop_hold_at=6.0)
+    with pytest.raises(PrimitiveFailure) as e:
+        run_excavate_with_cleanup(HOLD, ctx)
+    assert 'left hold mode' in e.value.message and ctx.hold_msgs[-1][2] is False
+    # IMU goes quiet mid-dig -> fail after 2 s, HOLD OFF
+    ctx = PitchCtx(imu_drop_at=6.0)
+    with pytest.raises(PrimitiveFailure) as e:
+        run_excavate_with_cleanup(HOLD, ctx)
+    assert 'no IMU pitch' in e.value.message and 7.9 < ctx.t < 8.5
+    assert ctx.hold_msgs[-1][2] is False
 
 
 def test_excavate_hold_needs_imu_and_a_legal_angle():

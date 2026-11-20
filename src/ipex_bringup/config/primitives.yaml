@@ -25,9 +25,11 @@ primitive_server:
     depth_hold_max_pitch_deg: 4.0       # estimate: |pitch change| over this = stop correcting (2.4 x 4 = 9.6 deg < the cap)
     depth_hold_max_correction_deg: 10.0 # estimate: |arm - dig angle| cap
     depth_hold_max_ratio: 3.0           # |correction| <= 3 x |pitch change|; geometry needs 1 + A/(L cos a) = 2.3-2.4 at -30..-10 deg
-    depth_hold_deadband_deg: 0.5        # estimate: limits brake cycling, not accuracy
-    depth_hold_min_interval_s: 1.0      # estimate: each move costs ~0.5 s of brake release / engage
-    pitch_filter_tau_s: 1.0             # estimate: tune from a dig bag's /imu/data
+    depth_hold_brake_off: true          # arm Teensy hold mode while holding: brake released once, motors hold
+                                        # (encoder closed loop; slip > 1 deg, no keepalive 0.5 s, STOP -> brake). false = brake cycles per move
+    depth_hold_deadband_deg: 0.25       # estimate: ~0.1 deg of pitch; rejects IMU noise (use 0.5 with brake_off false)
+    depth_hold_min_interval_s: 0.2      # estimate: retargets are free with the brake off (use 1.0 with brake_off false: ~0.45 s brake cycle per move)
+    pitch_filter_tau_s: 0.3             # estimate (was 1.0, lagged ~3 s on the 2026-11-18 tilt check); tune from a dig bag's /imu/data
     imu_stale_s: 0.5                    # UM7 update_rate 60 Hz (um7.yaml) -> ~30 missed messages
 
     arm_tolerance_deg: 0.5       # "reached" when within this of the target
